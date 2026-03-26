@@ -23,7 +23,8 @@ const MenuLateral = () => {
   const [open, setOpen] = useState(true);
 
   return (
-    <nav className={`shadow-2xl h-screen p-2 flex flex-col duration-500 bg-emerald-950 text-white sticky top-0 ${open ? 'w-64' : 'w-20'}`}>
+    // 🔥 Se agregó "z-50" aquí para que el sidebar quede por encima de los z-index de la sección principal
+    <nav className={`shadow-2xl h-screen p-2 flex flex-col duration-500 bg-emerald-950 text-white sticky top-0 z-50 ${open ? 'w-64' : 'w-20'}`}>
 
       {/* Header */}
       <div className='px-3 py-2 h-20 flex justify-between items-center'>
@@ -56,7 +57,6 @@ const MenuLateral = () => {
                   : 'text-emerald-300 hover:bg-emerald-900/50 hover:text-white'}
               `}
             >
-              {/* Indicador de Activo (Rayita blanca para resaltar sobre el verde) */}
               {({ isActive }) => (
                 <>
                   {isActive && (
