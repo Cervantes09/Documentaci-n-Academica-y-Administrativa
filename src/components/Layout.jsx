@@ -2,6 +2,7 @@ import React from 'react';
 import { Outlet } from 'react-router-dom'; // IMPORTANTE
 import MenuLateral from './MenuLateral';
 import AdminDocs from './vistas/AdminDocs';
+import AdminDirector from './vistas/AdminDirector';
 
 const Layout = () => {
   return (

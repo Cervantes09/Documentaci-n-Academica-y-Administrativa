@@ -1,0 +1,195 @@
+import React, { useState } from 'react';
+import { HiOutlineUserAdd, HiOutlineTrash, HiOutlineCheck, HiOutlineDocumentReport, HiOutlineDatabase } from "react-icons/hi";
+
+const TAB_INDEX = { usuarios: 0, reportes: 1 };
+
+const AdminDirector = () => {
+  const [tabActiva, setTabActiva] = useState('usuarios');
+  const [direccion, setDireccion] = useState('derecha');
+
+  const cambiarTab = (nuevoTab) => {
+    if (nuevoTab === tabActiva) return;
+    const esDerecha = TAB_INDEX[nuevoTab] > TAB_INDEX[tabActiva];
+    setDireccion(esDerecha ? 'derecha' : 'izquierda');
+    setTabActiva(nuevoTab);
+  };
+
+  // Simulación de usuarios que se acaban de registrar y no tienen rol asignado
+  const [usuariosPendientes, setUsuariosPendientes] = useState([
+    { id: 1, nombre: "Ing. Alan Brito", correo: "alan.brito@utnay.edu.mx", fecha: "2026-03-26" },
+    { id: 2, nombre: "Lic. Dulce María", correo: "dulce.maria@utnay.edu.mx", fecha: "2026-03-27" },
+  ]);
+
+  const asignarRolYBorrar = (id) => {
+    // Aquí en el futuro harás la petición a la BD para cambiar el rol
+    setUsuariosPendientes(usuariosPendientes.filter(u => u.id !== id));
+  };
+
+  return (
+    <div className="space-y-6">
+      <header>
+        <h1 className="text-2xl font-bold text-slate-800">Panel del Director Supremo</h1>
+        <p className="text-slate-500 text-sm">Control total de privilegios, reportes institucionales y base de datos.</p>
+      </header>
+
+      {/* 🚀 TABS SUPERIORES (Solo iconos en móvil, iconos + texto en PC) */}
+      <div className="flex border-b border-slate-200 w-full overflow-hidden bg-white rounded-t-xl">
+        <button
+          onClick={() => cambiarTab('usuarios')}
+          className={`flex items-center justify-center gap-2 py-4 px-2 font-bold text-sm transition-all duration-300 relative flex-1 ${
+            tabActiva === 'usuarios' ? 'text-emerald-600 bg-emerald-50/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+          }`}
+          title="Gestión de Roles"
+        >
+          <HiOutlineUserAdd size={24} className="flex-shrink-0" />
+          <span className="hidden md:inline truncate">Autorizar Usuarios</span>
+          {tabActiva === 'usuarios' && (
+            <div className="absolute bottom-0 left-0 w-full h-0.5 bg-emerald-600" />
+          )}
+        </button>
+
+        <button
+          onClick={() => cambiarTab('reportes')}
+          className={`flex items-center justify-center gap-2 py-4 px-2 font-bold text-sm transition-all duration-300 relative flex-1 ${
+            tabActiva === 'reportes' ? 'text-emerald-600 bg-emerald-50/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+          }`}
+          title="Reportes y Base de Datos"
+        >
+          <HiOutlineDocumentReport size={24} className="flex-shrink-0" />
+          <span className="hidden md:inline truncate">Reportes y DB</span>
+          {tabActiva === 'reportes' && (
+            <div className="absolute bottom-0 left-0 w-full h-0.5 bg-emerald-600" />
+          )}
+        </button>
+      </div>
+
+      {/* 📦 CONTENEDOR DE CONTENIDO CON ANIMACIÓN */}
+      <div className="relative min-h-[500px] overflow-hidden">
+
+        {/* === VISTA 1: AUTORIZAR NUEVOS REGISTROS === */}
+        {tabActiva === 'usuarios' && (
+          <div className={`animate-slide-in-${direccion === 'derecha' ? 'right' : 'left'} w-full space-y-6`}>
+            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-slate-100">
+                <h2 className="font-bold text-slate-700">Usuarios Esperando Aprobación de Rol</h2>
+              </div>
+
+              <div className="overflow-x-auto w-full">
+                <table className="w-full text-left min-w-[650px] md:min-w-full">
+                  <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
+                    <tr>
+                      <th className="px-6 py-3">Nombre</th>
+                      <th className="px-6 py-3">Correo</th>
+                      <th className="px-6 py-3">Fecha Registro</th>
+                      <th className="px-6 py-3 text-center">Asignar Rol</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {usuariosPendientes.length === 0 ? (
+                      <tr>
+                        <td colSpan="4" className="px-6 py-10 text-center text-slate-400 text-sm">No hay usuarios pendientes por autorizar.</td>
+                      </tr>
+                    ) : (
+                      usuariosPendientes.map((user) => (
+                        <tr key={user.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-6 py-4 text-sm font-medium text-slate-700 whitespace-nowrap">{user.nombre}</td>
+                          <td className="px-6 py-4 text-sm text-slate-500 whitespace-nowrap">{user.correo}</td>
+                          <td className="px-6 py-4 text-sm text-slate-500 whitespace-nowrap">{user.fecha}</td>
+                          <td className="px-6 py-4 flex justify-center gap-2 whitespace-nowrap">
+                            <button onClick={() => asignarRolYBorrar(user.id)} className="flex items-center gap-1 p-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors text-xs font-bold">
+                              <HiOutlineCheck size={16} /> Docente
+                            </button>
+                            <button onClick={() => asignarRolYBorrar(user.id)} className="flex items-center gap-1 p-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-xs font-bold">
+                              <HiOutlineUserAdd size={16} /> Administrativo
+                            </button>
+                            <button onClick={() => asignarRolYBorrar(user.id)} className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors">
+                              <HiOutlineTrash size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* === VISTA 2: REPORTES Y BASE DE DATOS (Materia del Prof. Tovar) === */}
+        {tabActiva === 'reportes' && (
+          <div className={`animate-slide-in-${direccion === 'derecha' ? 'right' : 'left'} w-full space-y-6`}>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              {/* Sección de Reportes en PDF */}
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                <div className="flex items-center gap-2 text-emerald-600 font-bold border-b pb-3">
+                  <HiOutlineDocumentReport size={24} />
+                  <h2>Generar Reportes Oficiales</h2>
+                </div>
+                <p className="text-xs text-slate-500">Descarga resúmenes de cumplimiento docente en formato PDF.</p>
+                
+                <div className="space-y-2">
+                  <button className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-4 rounded-lg text-sm transition-all flex items-center justify-center gap-2">
+                    📄 Reporte de Documentos Entregados
+                  </button>
+                  <button className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-3 px-4 rounded-lg text-sm transition-all flex items-center justify-center gap-2">
+                    📄 Reporte de Incidencias en Academia
+                  </button>
+                </div>
+              </div>
+
+              {/* Sección de Mantenimiento de BD (Puntos con Tovar) */}
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                <div className="flex items-center gap-2 text-amber-600 font-bold border-b pb-3">
+                  <HiOutlineDatabase size={24} />
+                  <h2>Gestión de Base de Datos</h2>
+                </div>
+                <p className="text-xs text-slate-500">Respalda la información de todo el sistema o restaura un punto anterior.</p>
+                
+                <div className="space-y-2">
+                  <button className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-4 rounded-lg text-sm transition-all flex items-center justify-center gap-2">
+                    ⚙️ Generar Respaldo Manual (Backup)
+                  </button>
+                  <button className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-3 px-4 rounded-lg text-sm transition-all flex items-center justify-center gap-2">
+                    🔄 Restaurar Sistema de un punto anterior
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Programación de Respaldos Automatizados (Punto del 15% con Tovar) */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+              <div className="flex items-center gap-2 text-slate-800 font-bold border-b pb-3">
+                <HiOutlineDatabase size={24} />
+                <h2>Programación de respaldos automatizados</h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                <div>
+                  <label className="text-xs font-bold text-slate-600 uppercase">Frecuencia</label>
+                  <select className="w-full p-2.5 mt-1 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white">
+                    <option value="Diario">Diario (Madrugada)</option>
+                    <option value="Semanal">Semanal (Fines de semana)</option>
+                    <option value="Mensual">Mensual</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-600 uppercase">Hora de ejecución</label>
+                  <input type="time" defaultValue="02:00" className="w-full p-2 mt-1 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none" />
+                </div>
+                <button className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-[42px] rounded-lg text-sm transition-all">
+                  Guardar Configuración
+                </button>
+              </div>
+            </div>
+
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default AdminDirector;
