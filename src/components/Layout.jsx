@@ -4,6 +4,7 @@ import MenuLateral from './MenuLateral';
 import AdminDocs from './vistas/AdminDocs';
 import AdminDirector from './vistas/AdminDirector';
 
+
 const Layout = () => {
   return (
     <div className="flex min-h-screen bg-slate-50">

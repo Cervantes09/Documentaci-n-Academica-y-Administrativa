@@ -1,46 +1,90 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useSession } from './context/dataSesionUsuario';
+
+// Importación de Componentes y Vistas
 import Layout from './components/Layout';
 import Login from './components/vistas/Login';
 import PanelDashboard from './components/vistas/PanelDashboard';
 import MiExpediente from './components/vistas/Expediente.jsx';
 import FormatosUT from './components/vistas/FormatosUT.jsx';
 import Academia from './components/vistas/Academia.jsx';
+import PantallaEspera from './components/vistas/PantallaEspera';
+import AdminDirector from './components/vistas/AdminDirector';
+import AdminDocs from './components/vistas/AdminDocs';
+import SubirArchivo from './components/vistas/SubirArchivo';
 
 function App() {
-  // Mantienes tu lógica de login (Punto 6.2 de la lista)
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const { sesion, datosUsuario, cargando } = useSession();
+  const rol = datosUsuario?.tipousuario;
 
-  const handleLogin = () => {
-    setIsLoggedIn(true);
-  };
+  if (cargando) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-white">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
+      </div>
+    );
+  }
 
   return (
     <Router>
       <Routes>
-        {/* RUTA DE LOGIN: Si ya está logueado, lo manda al inicio */}
-        <Route 
-          path="/login" 
-          element={!isLoggedIn ? <Login onLogin={handleLogin} /> : <Navigate to="/" />} 
-        />
+        {/* ESCENARIO 1: NO HAY SESIÓN */}
+        {!sesion ? (
+          <>
+            <Route path="/login" element={<Login />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </>
+        ) : (
+          /* ESCENARIO 2: HAY SESIÓN */
+          <>
+            {/* CASO A: USUARIO PENDIENTE */}
+            {rol === 'pendiente' ? (
+              <>
+                <Route path="/espera" element={<PantallaEspera />} />
+                <Route path="*" element={<Navigate to="/espera" replace />} />
+              </>
+            ) : (
+              /* CASO B: ACCESO AUTORIZADO (RBAC) */
+              <Route path="/" element={<Layout />}>
+                
+                {/* --- RUTAS DOCENTE --- */}
+                {rol === 'docente' && (
+                  <>
+                    <Route index element={<PanelDashboard />} />
+                    <Route path="expediente" element={<MiExpediente />} />
+                    <Route path="academia" element={<Academia />} />
+                    <Route path="formatos" element={<FormatosUT />} />
+                    <Route path="subir" element={<SubirArchivo />} />
+                  </>
+                )}
 
-        {/* RUTAS PROTEGIDAS: Solo entran si isLoggedIn es true */}
-        <Route 
-          path="/" 
-          element={isLoggedIn ? <Layout /> : <Navigate to="/login" />}
-        >
-          {/* Aquí defines qué componente se inyecta en el <Outlet /> del Layout */}
-          <Route index element={<PanelDashboard />} />
-          <Route path="expediente" element={<MiExpediente />} />
-          <Route path="formatos" element={<FormatosUT />} />
-          <Route path="academia" element={<Academia />} />
-          
-          {/* Configuración (puedes crear el componente luego) */}
-          <Route path="configuracion" element={<div className="p-8"><h2>Configuración en construcción...</h2></div>} />
-        </Route>
+                {/* --- RUTAS ADMINISTRATIVO --- */}
+                {rol === 'administrativo' && (
+                  <>
+                    <Route index element={<Academia />} />
+                    <Route path="gestion-documentos" element={<AdminDocs />} />
+                    <Route path="formatos" element={<FormatosUT />} />
+                  </>
+                )}
 
-        {/* Comodín: Cualquier otra ruta manda al inicio o login */}
-        <Route path="*" element={<Navigate to="/" />} />
+                {/* --- RUTAS DIRECTOR --- */}
+                {rol === 'director' && (
+                  <>
+                    <Route index element={<AdminDirector />} />
+                    <Route path="academia" element={<Academia />} />
+                    <Route path="gestion-documentos" element={<AdminDocs />} />
+                    <Route path="formatos" element={<FormatosUT />} />
+                  </>
+                )}
+
+                {/* Ruta común y manejo de errores 404 dentro del dashboard */}
+                <Route path="configuracion" element={<div className="p-8">Configuración</div>} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Route>
+            )}
+          </>
+        )}
       </Routes>
     </Router>
   );
