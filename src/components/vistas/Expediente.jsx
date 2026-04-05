@@ -1,31 +1,89 @@
-import React, { useState } from 'react';
-import { HiOutlineSearch, HiOutlinePlus, HiOutlineDocumentText, HiOutlineDotsVertical, HiOutlineFilter } from "react-icons/hi";
-import SubirArchivo from './SubirArchivo.jsx'; // Tu componente del modal
+import React, { useState, useEffect } from 'react';
+import { HiOutlineSearch, HiOutlinePlus, HiOutlineDocumentText, HiOutlineDotsVertical, HiOutlineFilter, HiOutlineX } from "react-icons/hi";
+import SubirArchivo from './SubirArchivo.jsx';
+import { supabase } from '../../lib/supabase';
 
 const MiExpediente = () => {
   const [busqueda, setBusqueda] = useState("");
-  
-  // 1. Estado para controlar si el modal está abierto o cerrado
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [archivos, setArchivos] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Datos simulados de los archivos del docente
-  const archivos = [
-    { id: 1, nombre: "Planeacion_Argumentada_V1.pdf", fecha: "20/03/2026", tamano: "1.2 MB", categoria: "Planeaciones" },
-    { id: 2, nombre: "Lista_Calificaciones_IDGS81.xlsx", fecha: "18/03/2026", tamano: "850 KB", categoria: "Listas" },
-    { id: 3, nombre: "Acta_Tutoria_Gael.pdf", fecha: "15/03/2026", tamano: "2.1 MB", categoria: "Tutorías" },
-    { id: 4, nombre: "Reporte_Individual_Enero.pdf", fecha: "10/01/2026", tamano: "1.5 MB", categoria: "Reportes" },
-  ];
+  // 👈 Estado para controlar la edición
+  const [docAEditar, setDocAEditar] = useState(null); 
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+
+  useEffect(() => {
+    let activo = true;
+
+    const fetchData = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('DOCUMENTO')
+        .select('*')
+        .order('fecha', { ascending: false });
+
+      if (!activo) return;
+      if (error) console.error("Error al obtener expediente:", error);
+      else setArchivos(data || []);
+      
+      setLoading(false);
+    };
+
+    fetchData();
+    return () => { activo = false; };
+  }, []);
+
+  const recargar = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('DOCUMENTO')
+      .select('*')
+      .order('fecha', { ascending: false });
+
+    if (!error) setArchivos(data || []);
+    setLoading(false);
+  };
+
+  // Buscamos ahora por el nombre real o la URL
+  const archivosFiltrados = archivos.filter(archivo => {
+    const termino = busqueda.toLowerCase();
+    const nombreDoc = archivo.nombre?.toLowerCase() || "";
+    const urlDoc = archivo.archivo?.toLowerCase() || "";
+    return nombreDoc.includes(termino) || urlDoc.includes(termino);
+  });
+
+  // 👈 Función para guardar los cambios de edición
+  const guardarEdicion = async (e) => {
+    e.preventDefault();
+    setGuardandoEdicion(true);
+
+    const { error } = await supabase
+      .from('DOCUMENTO')
+      .update({
+        nombre: docAEditar.nombre,
+        tipo: docAEditar.tipo,
+        clasificacion: docAEditar.clasificacion
+      })
+      .eq('id', docAEditar.id);
+
+    if (error) {
+      alert("Error al actualizar: " + error.message);
+    } else {
+      setDocAEditar(null);
+      recargar(); // Recargamos para ver los cambios
+    }
+    setGuardandoEdicion(false);
+  };
 
   return (
     <div className="space-y-6 relative">
-      {/* Encabezado con acciones */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Mi Expediente</h1>
           <p className="text-slate-500 text-sm">Gestiona y organiza tus documentos académicos oficiales.</p>
         </div>
         
-        {/* 2. Al darle clic, activamos el modal */}
         <button 
           onClick={() => setIsModalOpen(true)}
           className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold transition-all shadow-md active:scale-95"
@@ -35,7 +93,6 @@ const MiExpediente = () => {
         </button>
       </div>
 
-      {/* Barra de Herramientas */}
       <div className="flex gap-2">
         <div className="relative flex-1">
           <HiOutlineSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
@@ -47,49 +104,117 @@ const MiExpediente = () => {
             onChange={(e) => setBusqueda(e.target.value)}
           />
         </div>
-        <button className="p-2 border border-slate-200 rounded-lg bg-white text-slate-600 hover:bg-slate-50">
-          <HiOutlineFilter size={20} />
-        </button>
       </div>
 
-      {/* Cuadrícula de Archivos */}
+      {loading && <p className="text-emerald-600 font-bold animate-pulse text-center py-10">Cargando tu expediente...</p>}
+      {!loading && archivosFiltrados.length === 0 && (
+        <div className="text-center py-10 text-slate-400">No se encontraron documentos.</div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {archivos.map((archivo) => (
+        {archivosFiltrados.map((archivo) => (
           <div key={archivo.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all group relative">
             <div className="flex justify-between items-start mb-4">
               <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
                 <HiOutlineDocumentText size={30} />
               </div>
-              <button className="text-slate-400 hover:text-slate-600 p-1">
+              
+              {/* 👈 Botón de los 3 puntitos abre el modal de edición */}
+              <button 
+                onClick={() => setDocAEditar(archivo)}
+                className="text-slate-400 hover:text-emerald-600 hover:bg-slate-50 p-1.5 rounded-lg transition-colors"
+                title="Editar metadatos"
+              >
                 <HiOutlineDotsVertical size={20} />
               </button>
             </div>
             
-            <h3 className="font-bold text-slate-700 text-sm truncate mb-1" title={archivo.nombre}>
-              {archivo.nombre}
+            {/* 👈 Mostramos el nombre legible si existe, si no, lo que se pueda de la URL */}
+            <h3 className="font-bold text-slate-700 text-sm truncate mb-1" title={archivo.nombre || archivo.archivo}>
+              {archivo.nombre || archivo.archivo?.split('/').pop() || "Documento"} 
             </h3>
-            <p className="text-[10px] text-emerald-600 font-bold uppercase mb-3">{archivo.categoria}</p>
             
-            <div className="flex justify-between items-center text-[11px] text-slate-400 border-t pt-3">
-              <span>{archivo.fecha}</span>
-              <span>{archivo.tamano}</span>
+            <p className="text-[10px] text-emerald-600 font-bold uppercase mb-3">
+              {archivo.tipo} <span className="text-slate-300 mx-1">•</span> {archivo.clasificacion}
+            </p>
+            
+            <div className="flex justify-between items-center text-[11px] font-medium border-t pt-3">
+              <span className="text-slate-400">{new Date(archivo.fecha).toLocaleDateString()}</span>
+              <span className={`px-2 py-0.5 rounded-full ${
+                archivo.estado === 'Validado' ? 'bg-emerald-100 text-emerald-700' : 
+                archivo.estado === 'Rechazado' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+              }`}>
+                {archivo.estado}
+              </span>
             </div>
 
-            {/* Acciones rápidas */}
             <div className="absolute inset-x-0 bottom-0 p-4 bg-white/95 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity rounded-b-xl border-t">
-              <button className="flex-1 text-[11px] font-bold py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700">Ver</button>
-              <button className="flex-1 text-[11px] font-bold py-1 border border-slate-200 text-slate-600 rounded hover:bg-slate-50">Descargar</button>
+              <a href={archivo.archivo} target="_blank" rel="noreferrer" className="flex-1 text-[11px] font-bold py-1.5 bg-emerald-600 text-white rounded hover:bg-emerald-700 text-center">Ver</a>
+              <a href={archivo.archivo} download target="_blank" rel="noreferrer" className="flex-1 text-[11px] font-bold py-1.5 border border-slate-200 text-slate-600 rounded hover:bg-slate-50 text-center">Descargar</a>
             </div>
           </div>
         ))}
       </div>
 
-      {/* 3. Inyectamos el componente del Modal y le pasamos las props */}
-      <SubirArchivo 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-      />
+      <SubirArchivo isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onUploadSuccess={recargar} />
       
+      {/* 🚀 NUEVO: MODAL DE EDICIÓN RÁPIDA */}
+      {docAEditar && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden relative border border-slate-100">
+            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h2 className="font-bold text-slate-800">Editar Documento</h2>
+              <button onClick={() => setDocAEditar(null)} className="text-slate-400 hover:text-red-500"><HiOutlineX size={20}/></button>
+            </div>
+            
+            <form onSubmit={guardarEdicion} className="p-5 space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-600">Nombre:</label>
+                <input 
+                  type="text" 
+                  value={docAEditar.nombre || ""} 
+                  onChange={(e) => setDocAEditar({...docAEditar, nombre: e.target.value})}
+                  className="w-full p-2 border border-slate-200 rounded text-sm focus:ring-1 focus:ring-emerald-500 outline-none" 
+                  required
+                />
+              </div>
+              
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-600">Tipo:</label>
+                <select 
+                  value={docAEditar.tipo || ""} 
+                  onChange={(e) => setDocAEditar({...docAEditar, tipo: e.target.value})}
+                  className="w-full p-2 border border-slate-200 rounded text-sm outline-none"
+                >
+                  {["Planeación Docente", "Lista de Asistencia", "Acta de Academia", "Reporte Final"].map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-600">Periodo:</label>
+                <select 
+                  value={docAEditar.clasificacion || ""} 
+                  onChange={(e) => setDocAEditar({...docAEditar, clasificacion: e.target.value})}
+                  className="w-full p-2 border border-slate-200 rounded text-sm outline-none"
+                >
+                  {["ENE-ABR 2026", "MAY-AGO 2026", "SEP-DIC 2026"].map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+
+              <div className="pt-3">
+                <button 
+                  type="submit" 
+                  disabled={guardandoEdicion}
+                  className="w-full py-2 bg-emerald-600 text-white font-bold rounded-lg text-sm hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {guardandoEdicion ? "Guardando..." : "Guardar Cambios"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
