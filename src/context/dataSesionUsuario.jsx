@@ -1,66 +1,60 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 
 const SessionContext = createContext();
 
 export const SessionProvider = ({ children }) => {
-  const [sesion, setSesion] = useState(null); // Datos de AUTH
-  const [datosUsuario, setDatosUsuario] = useState(null); // Datos de tu tabla usuario
+  const [sesion, setSesion] = useState(null);
+  const [datosUsuario, setDatosUsuario] = useState(null);
   const [cargando, setCargando] = useState(true);
+  
+  // Referencia para saber si ya estamos cargando datos y evitar duplicados
+  const cargandoPerfil = useRef(false);
 
-  // --- FUNCIÓN PARA CERRAR SESIÓN (NUEVA) ---
   const cerrarSesion = async () => {
     try {
       await supabase.auth.signOut();
-      // Limpiamos los estados localmente para una respuesta inmediata de la UI
       setSesion(null);
       setDatosUsuario(null);
     } catch (error) {
-      console.error("Error al cerrar sesión:", error.message);
+      // Solo errores críticos en consola
     }
   };
 
-  // Función para jalar los datos de tu tabla usuario
   const obtenerPerfil = async (uid) => {
+    // Si ya hay datos del mismo usuario o ya estamos cargando, no repetimos
+    if (cargandoPerfil.current || (datosUsuario && sesion?.id === uid)) return;
+    
+    cargandoPerfil.current = true;
     try {
-      const { data, error } = await supabase
-        .from('usuario')
-        .select('*')
-        .eq('uid_fk', uid)
-        .single();
+      // Reducimos el timeout a 2 segundos para mayor agilidad
+      const result = await Promise.race([
+        supabase.from('usuario').select('*').eq('uid_fk', uid).single(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 2000))
+      ]);
 
-      if (error) {
-        console.warn("No se encontró perfil para este UID.");
-        setDatosUsuario(null);
-      } else {
+      const { data, error } = result;
+
+      if (!error && data) {
         setDatosUsuario(data);
+      } else {
+        setDatosUsuario(null);
       }
     } catch (error) {
-      console.error("Error crítico al obtener perfil:", error.message);
       setDatosUsuario(null);
     } finally {
       setCargando(false);
+      cargandoPerfil.current = false;
     }
   };
 
   useEffect(() => {
-    const inicializarSesion = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        setSesion(session.user);
-        await obtenerPerfil(session.user.id);
-      } else {
-        setSesion(null);
-        setDatosUsuario(null);
-        setCargando(false);
-      }
-    };
-
-    inicializarSesion();
-
+    // onAuthStateChange maneja el evento INITIAL_SESSION automáticamente al suscribirse,
+    // por lo que no necesitamos inicializarSesion aparte para evitar duplicidad.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session) {
         setSesion(session.user);
+        // Solo llamamos a obtenerPerfil si no tenemos los datos o cambió el usuario
         await obtenerPerfil(session.user.id);
       } else {
         setSesion(null);
@@ -73,7 +67,6 @@ export const SessionProvider = ({ children }) => {
   }, []);
 
   return (
-    // Agregamos cerrarSesion al value para que sea accesible globalmente
     <SessionContext.Provider value={{ sesion, datosUsuario, cargando, cerrarSesion }}>
       {children}
     </SessionContext.Provider>
