@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { HiOutlineSearch, HiOutlinePlus, HiOutlineDocumentText, HiOutlineDotsVertical, HiOutlineFilter, HiOutlineX } from "react-icons/hi";
 import SubirArchivo from './SubirArchivo.jsx';
+import VistaArchivo from './VistaArchivo.jsx';
 import { supabase } from '../../lib/supabase';
 
 const MiExpediente = () => {
@@ -9,9 +10,13 @@ const MiExpediente = () => {
   const [archivos, setArchivos] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // 👈 Estado para controlar la edición
+  // Estados para controlar la edición
   const [docAEditar, setDocAEditar] = useState(null); 
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+
+  // Estados para el visor y descargas
+  const [archivoParaVer, setArchivoParaVer] = useState(null);
+  const [descargandoId, setDescargandoId] = useState(null);
 
   useEffect(() => {
     let activo = true;
@@ -45,7 +50,7 @@ const MiExpediente = () => {
     setLoading(false);
   };
 
-  // Buscamos ahora por el nombre real o la URL
+  // Buscamos por nombre real o URL
   const archivosFiltrados = archivos.filter(archivo => {
     const termino = busqueda.toLowerCase();
     const nombreDoc = archivo.nombre?.toLowerCase() || "";
@@ -53,7 +58,7 @@ const MiExpediente = () => {
     return nombreDoc.includes(termino) || urlDoc.includes(termino);
   });
 
-  // 👈 Función para guardar los cambios de edición
+  // Guardar cambios de edición
   const guardarEdicion = async (e) => {
     e.preventDefault();
     setGuardandoEdicion(true);
@@ -71,9 +76,37 @@ const MiExpediente = () => {
       alert("Error al actualizar: " + error.message);
     } else {
       setDocAEditar(null);
-      recargar(); // Recargamos para ver los cambios
+      recargar();
     }
     setGuardandoEdicion(false);
+  };
+
+  // Fuerza la descarga directa
+  const forzarDescarga = async (url, nombreOriginal, id) => {
+    try {
+      setDescargandoId(id); 
+      
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      
+      const extension = url.split('.').pop().split('?')[0]; 
+      link.download = `${nombreOriginal || 'Documento'}.${extension}`;
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      window.URL.revokeObjectURL(blobUrl); 
+    } catch (error) {
+      console.error("Error al descargar:", error);
+      alert("Hubo un problema al intentar descargar el archivo.");
+    } finally {
+      setDescargandoId(null);
+    }
   };
 
   return (
@@ -119,7 +152,6 @@ const MiExpediente = () => {
                 <HiOutlineDocumentText size={30} />
               </div>
               
-              {/* 👈 Botón de los 3 puntitos abre el modal de edición */}
               <button 
                 onClick={() => setDocAEditar(archivo)}
                 className="text-slate-400 hover:text-emerald-600 hover:bg-slate-50 p-1.5 rounded-lg transition-colors"
@@ -129,7 +161,6 @@ const MiExpediente = () => {
               </button>
             </div>
             
-            {/* 👈 Mostramos el nombre legible si existe, si no, lo que se pueda de la URL */}
             <h3 className="font-bold text-slate-700 text-sm truncate mb-1" title={archivo.nombre || archivo.archivo}>
               {archivo.nombre || archivo.archivo?.split('/').pop() || "Documento"} 
             </h3>
@@ -148,9 +179,21 @@ const MiExpediente = () => {
               </span>
             </div>
 
+            {/* BOTONES DE VISOR Y DESCARGA ACTUALIZADOS */}
             <div className="absolute inset-x-0 bottom-0 p-4 bg-white/95 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity rounded-b-xl border-t">
-              <a href={archivo.archivo} target="_blank" rel="noreferrer" className="flex-1 text-[11px] font-bold py-1.5 bg-emerald-600 text-white rounded hover:bg-emerald-700 text-center">Ver</a>
-              <a href={archivo.archivo} download target="_blank" rel="noreferrer" className="flex-1 text-[11px] font-bold py-1.5 border border-slate-200 text-slate-600 rounded hover:bg-slate-50 text-center">Descargar</a>
+              <button 
+                onClick={() => setArchivoParaVer(archivo)}
+                className="flex-1 text-[11px] font-bold py-1.5 bg-emerald-600 text-white rounded hover:bg-emerald-700 text-center"
+              >
+                Ver
+              </button>
+              <button 
+                onClick={() => forzarDescarga(archivo.archivo, archivo.nombre, archivo.id)}
+                disabled={descargandoId === archivo.id}
+                className="flex-1 text-[11px] font-bold py-1.5 border border-slate-200 text-slate-600 rounded hover:bg-slate-50 text-center disabled:opacity-50"
+              >
+                {descargandoId === archivo.id ? 'Descargando...' : 'Descargar'}
+              </button>
             </div>
           </div>
         ))}
@@ -158,7 +201,7 @@ const MiExpediente = () => {
 
       <SubirArchivo isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onUploadSuccess={recargar} />
       
-      {/* 🚀 NUEVO: MODAL DE EDICIÓN RÁPIDA */}
+      {/* MODAL DE EDICIÓN RÁPIDA */}
       {docAEditar && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden relative border border-slate-100">
@@ -214,6 +257,12 @@ const MiExpediente = () => {
           </div>
         </div>
       )}
+
+      {/* VISOR DE ARCHIVOS INTEGRADO */}
+      <VistaArchivo 
+        archivo={archivoParaVer} 
+        onClose={() => setArchivoParaVer(null)} 
+      />
 
     </div>
   );
