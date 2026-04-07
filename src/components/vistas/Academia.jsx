@@ -1,30 +1,49 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { HiOutlineSpeakerphone, HiOutlineFolder, HiOutlineClock, HiOutlineUserGroup, HiOutlineExternalLink } from "react-icons/hi";
+import { supabase } from '../../lib/supabase'; // Asegúrate de que esta ruta sea la correcta
 
 const Academia = () => {
-  // Datos simulados para el Feed (Punto 5.1)
-  const noticias = [
-    {
-      id: 1,
-      autor: "Coordinación IDGS",
-      fecha: "Hace 2 horas",
-      titulo: "Próxima Reunión de Academia",
-      contenido: "Se les convoca a la reunión mensual para revisar los avances del Proyecto Integrador. Salón de juntas, 10:00 AM.",
-      tag: "Urgente",
-      color: "bg-red-100 text-red-600"
-    },
-    {
-      id: 2,
-      autor: "Vinculación",
-      fecha: "Ayer",
-      titulo: "Nuevas Vacantes Estadías",
-      contenido: "Se han actualizado las empresas convenio para el periodo MAY-AGO 2026. Favor de informar a sus tutorados.",
-      tag: "Aviso",
-      color: "bg-blue-100 text-blue-600"
-    }
-  ];
+  // 1. ESTADOS PARA SUPABASE
+  const [noticias, setNoticias] = useState([]);
+  const [cargando, setCargando] = useState(true);
 
-  // Datos para las Carpetas Compartidas
+  // 2. FUNCIÓN PARA CARGAR LOS AVISOS
+  const fetchAvisos = async () => {
+    try {
+      setCargando(true);
+      const { data, error } = await supabase
+        .from('AVISO')
+        .select('*')
+        .order('created_at', { ascending: false }); // Ordena del más nuevo al más viejo
+
+      if (error) throw error;
+
+      setNoticias(data || []);
+    } catch (error) {
+      console.error("Error al cargar los avisos:", error);
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  // 3. EJECUTAR AL ABRIR LA PÁGINA
+  useEffect(() => {
+    fetchAvisos();
+  }, []);
+
+  // 4. FUNCIÓN PARA DARLE COLOR A LAS ETIQUETAS
+  const obtenerEstiloPorTipo = (tipo) => {
+    switch (tipo) {
+      case 'Urgente':
+        return 'bg-red-100 text-red-600';
+      case 'Evento':
+        return 'bg-purple-100 text-purple-600';
+      default: // Normal
+        return 'bg-blue-100 text-blue-600';
+    }
+  };
+
+  // Datos fijos para las Carpetas Compartidas (Esto lo dejamos igual por ahora)
   const carpetas = [
     { id: 1, nombre: "Actas de Academia 2026", archivos: 12, color: "text-amber-500" },
     { id: 2, nombre: "Material Didáctico Común", archivos: 45, color: "text-emerald-500" },
@@ -43,28 +62,42 @@ const Academia = () => {
         </div>
 
         <div className="grid gap-4">
-          {noticias.map((post) => (
-            <div key={post.id} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex justify-between items-start mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
-                    <HiOutlineUserGroup size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-700">{post.autor}</h3>
-                    <p className="text-[11px] text-slate-400 flex items-center gap-1">
-                      <HiOutlineClock size={12} /> {post.fecha}
-                    </p>
-                  </div>
-                </div>
-                <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${post.color}`}>
-                  {post.tag}
-                </span>
-              </div>
-              <h4 className="text-base font-bold text-slate-800 mb-2">{post.titulo}</h4>
-              <p className="text-sm text-slate-600 leading-relaxed">{post.contenido}</p>
+          {cargando ? (
+            <div className="py-8 text-center text-slate-500 animate-pulse font-medium">
+              Cargando avisos recientes...
             </div>
-          ))}
+          ) : noticias.length === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500 shadow-sm">
+              No hay avisos nuevos en la Academia.
+            </div>
+          ) : (
+            noticias.map((post) => (
+              <div key={post.id} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
+                      <HiOutlineUserGroup size={20} />
+                    </div>
+                    <div>
+                      {/* Como no guardamos un autor, le ponemos un texto genérico oficial */}
+                      <h3 className="text-sm font-bold text-slate-700">Coordinación Académica</h3>
+                      <p className="text-[11px] text-slate-400 flex items-center gap-1">
+                        <HiOutlineClock size={12} /> Publicado: {new Date(post.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${obtenerEstiloPorTipo(post.tipo)}`}>
+                    {post.tipo}
+                  </span>
+                </div>
+                <h4 className="text-base font-bold text-slate-800 mb-2">{post.titulo}</h4>
+                <p className="text-sm text-slate-600 leading-relaxed mb-3">{post.contenido}</p>
+                <div className="bg-slate-50 p-2 rounded-lg inline-block">
+                  <p className="text-xs font-bold text-slate-500">📅 Fecha Programada: <span className="text-slate-700">{post.fecha_programada}</span></p>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </section>
 
@@ -96,7 +129,7 @@ const Academia = () => {
         </div>
       </section>
 
-      {/* Banner Informativo (Punto 6.1: Usabilidad) */}
+      {/* Banner Informativo */}
       <div className="bg-[#003d2b] rounded-2xl p-6 text-white flex flex-col md:flex-row items-center justify-between gap-4">
         <div>
           <h3 className="font-bold text-lg text-emerald-400">¿Necesitas compartir algo?</h3>

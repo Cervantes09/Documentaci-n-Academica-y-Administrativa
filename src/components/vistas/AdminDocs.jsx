@@ -22,11 +22,54 @@ const AdminDocs = () => {
   const [tipoAviso, setTipoAviso] = useState('Normal');
   const [fechaProgramada, setFechaProgramada] = useState('');
 
+  // NUEVO ESTADO: Controla el botón de publicar
+  const [publicandoAviso, setPublicandoAviso] = useState(false);
+
+  // NUEVA FUNCIÓN: Enviar a Supabase
+  const publicarAviso = async () => {
+    // 1. Validar que no haya campos vacíos
+    if (!titulo.trim() || !contenido.trim() || !fechaProgramada) {
+      alert("Por favor, llena todos los campos antes de publicar.");
+      return;
+    }
+
+    try {
+      setPublicandoAviso(true);
+
+      // 2. Insertar en la tabla AVISO de Supabase
+      const { error } = await supabase
+        .from('AVISO')
+        .insert([
+          {
+            titulo: titulo,
+            tipo: tipoAviso,
+            contenido: contenido,
+            fecha_programada: fechaProgramada
+          }
+        ]);
+
+      if (error) throw error;
+
+      // 3. Si todo sale bien, mostramos mensaje y limpiamos el formulario
+      alert("¡Aviso publicado exitosamente en la Academia!");
+      setTitulo('');
+      setContenido('');
+      setTipoAviso('Normal');
+      setFechaProgramada('');
+
+    } catch (error) {
+      console.error("Error al publicar aviso:", error);
+      alert("Hubo un error al publicar el aviso: " + error.message);
+    } finally {
+      setPublicandoAviso(false);
+    }
+  };
+
   // Estados para el formulario de Formatos Oficiales
   const [nombreFormato, setNombreFormato] = useState('');
   const [descripcionFormato, setDescripcionFormato] = useState('');
 
-  // 🚀 ESTADOS PARA DOCUMENTOS REALES DESDE SUPABASE
+  // ESTADOS PARA DOCUMENTOS REALES DESDE SUPABASE
   const [documentos, setDocumentos] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(true);
 
@@ -36,7 +79,6 @@ const AdminDocs = () => {
     { id: 2, nombre: "Carta_Liberacion_Estadia.docx", descripcion: "Liberación de prácticas profesionales", fecha: "2026-03-01" },
   ]);
 
-  // 🔥 SOLUCIÓN PRO: Función limpia con try/catch/finally
   const fetchDocumentos = async () => {
     try {
       setLoadingDocs(true);
@@ -56,12 +98,10 @@ const AdminDocs = () => {
     }
   };
 
-  // ✅ USE_EFFECT SEGURO: Control de montaje para evitar warnings de React
   useEffect(() => {
     let mounted = true;
 
     const cargar = async () => {
-      // Solo ejecutamos si el componente sigue en pantalla
       if (mounted) {
         await fetchDocumentos();
       }
@@ -69,18 +109,14 @@ const AdminDocs = () => {
 
     cargar();
 
-    // Cleanup function: Se ejecuta si el componente se desmonta
     return () => {
       mounted = false;
     };
   }, []);
 
-  // 🚀 FUNCIÓN ACTUALIZADA: Cambia el estado en Supabase
   const cambiarEstado = async (id, nuevoEstado) => {
-    // 1. Optimistic UI: Actualizamos vista inmediatamente
     setDocumentos(documentos.map(doc => doc.id === id ? { ...doc, estado: nuevoEstado } : doc));
 
-    // 2. Base de datos
     const { error } = await supabase
       .from('DOCUMENTO')
       .update({ estado: nuevoEstado })
@@ -88,7 +124,7 @@ const AdminDocs = () => {
 
     if (error) {
       alert("Error al actualizar el estado: " + error.message);
-      fetchDocumentos(); // Recargar la lista real en caso de error para deshacer el cambio visual
+      fetchDocumentos(); 
     }
   };
 
@@ -264,9 +300,17 @@ const AdminDocs = () => {
                   <label className="text-xs font-bold text-slate-600 uppercase">Programar para la fecha</label>
                   <input type="date" value={fechaProgramada} onChange={(e) => setFechaProgramada(e.target.value)} className="w-full p-2.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none" />
                 </div>
-                <button className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-[45px] rounded-lg text-sm transition-all flex items-center justify-center gap-2">
-                  <HiOutlineBell size={18} /> Publicar en Academia
+                
+                {/* BOTÓN ACTUALIZADO CON ESTADO DE CARGA */}
+                <button 
+                  onClick={publicarAviso}
+                  disabled={publicandoAviso}
+                  className={`bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-[45px] rounded-lg text-sm transition-all flex items-center justify-center gap-2 ${publicandoAviso ? 'opacity-70 cursor-not-allowed' : ''}`}
+                >
+                  <HiOutlineBell size={18} /> 
+                  {publicandoAviso ? 'Publicando...' : 'Publicar en Academia'}
                 </button>
+
               </div>
             </div>
           </div>
