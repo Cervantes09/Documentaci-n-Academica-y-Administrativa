@@ -1,17 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { HiOutlineCheck, HiOutlineX, HiOutlineBell, HiOutlineClipboardCheck, HiOutlinePencilAlt, HiOutlineFolderAdd, HiOutlineTrash } from "react-icons/hi";
+import { supabase } from '../../lib/supabase';
 
 // Mapeamos los tabs a índices para saber si vamos a la izquierda o derecha
 const TAB_INDEX = { documentos: 0, avisos: 1, formatos: 2 };
 
 const AdminDocs = () => {
   const [tabActiva, setTabActiva] = useState('documentos');
-  const [direccion, setDireccion] = useState('derecha'); // 'derecha' o 'izquierda'
+  const [direccion, setDireccion] = useState('derecha');
 
   const cambiarTab = (nuevoTab) => {
     if (nuevoTab === tabActiva) return;
-
-    // Calculamos si el nuevo tab está a la derecha o izquierda del actual
     const esDerecha = TAB_INDEX[nuevoTab] > TAB_INDEX[tabActiva];
     setDireccion(esDerecha ? 'derecha' : 'izquierda');
     setTabActiva(nuevoTab);
@@ -27,11 +26,9 @@ const AdminDocs = () => {
   const [nombreFormato, setNombreFormato] = useState('');
   const [descripcionFormato, setDescripcionFormato] = useState('');
 
-  // Simulación de documentos que los docentes subieron
-  const [documentos, setDocumentos] = useState([
-    { id: 1, docente: "Gael Zamora", archivo: "Planeacion_Argumentada.pdf", estado: "Pendiente" },
-    { id: 2, docente: "Roberto Ruiz", archivo: "Lista_Asistencia_IDGS81.xlsx", estado: "Pendiente" },
-  ]);
+  // 🚀 ESTADOS PARA DOCUMENTOS REALES DESDE SUPABASE
+  const [documentos, setDocumentos] = useState([]);
+  const [loadingDocs, setLoadingDocs] = useState(true);
 
   // Simulación de Formatos Oficiales ya publicados
   const [formatosOficiales, setFormatosOficiales] = useState([
@@ -39,8 +36,60 @@ const AdminDocs = () => {
     { id: 2, nombre: "Carta_Liberacion_Estadia.docx", descripcion: "Liberación de prácticas profesionales", fecha: "2026-03-01" },
   ]);
 
-  const cambiarEstado = (id, nuevoEstado) => {
+  // 🔥 SOLUCIÓN PRO: Función limpia con try/catch/finally
+  const fetchDocumentos = async () => {
+    try {
+      setLoadingDocs(true);
+
+      const { data, error } = await supabase
+        .from('DOCUMENTO')
+        .select('*')
+        .order('fecha', { ascending: false });
+
+      if (error) throw error;
+
+      setDocumentos(data || []);
+    } catch (error) {
+      console.error("Error al cargar documentos:", error);
+    } finally {
+      setLoadingDocs(false);
+    }
+  };
+
+  // ✅ USE_EFFECT SEGURO: Control de montaje para evitar warnings de React
+  useEffect(() => {
+    let mounted = true;
+
+    const cargar = async () => {
+      // Solo ejecutamos si el componente sigue en pantalla
+      if (mounted) {
+        await fetchDocumentos();
+      }
+    };
+
+    cargar();
+
+    // Cleanup function: Se ejecuta si el componente se desmonta
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // 🚀 FUNCIÓN ACTUALIZADA: Cambia el estado en Supabase
+  const cambiarEstado = async (id, nuevoEstado) => {
+    // 1. Optimistic UI: Actualizamos vista inmediatamente
     setDocumentos(documentos.map(doc => doc.id === id ? { ...doc, estado: nuevoEstado } : doc));
+
+    // 2. Base de datos
+    const { error } = await supabase
+      .from('DOCUMENTO')
+      .update({ estado: nuevoEstado })
+      .eq('id', id);
+
+    if (error) {
+      alert("Error al actualizar el estado: " + error.message);
+      fetchDocumentos(); // Recargar la lista real en caso de error para deshacer el cambio visual
+    }
   };
 
   const eliminarFormato = (id) => {
@@ -70,20 +119,17 @@ const AdminDocs = () => {
         <p className="text-slate-500 text-sm">Gestiona el flujo de documentos, comunicación y archivos oficiales de la Academia.</p>
       </header>
 
-      {/* 🚀 MENU DE PESTAÑAS SUPERIOR */}
+      {/* MENU DE PESTAÑAS SUPERIOR */}
       <div className="flex border-b border-slate-200 w-full overflow-hidden bg-white rounded-t-xl">
         <button
           onClick={() => cambiarTab('documentos')}
           className={`flex items-center justify-center gap-2 py-4 px-2 font-bold text-sm transition-all duration-300 relative flex-1 ${
             tabActiva === 'documentos' ? 'text-emerald-600 bg-emerald-50/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
           }`}
-          title="Validación de Documentos"
         >
           <HiOutlineClipboardCheck size={24} className="flex-shrink-0" />
           <span className="hidden md:inline truncate">Validación de Documentos</span>
-          {tabActiva === 'documentos' && (
-            <div className="absolute bottom-0 left-0 w-full h-0.5 bg-emerald-600" />
-          )}
+          {tabActiva === 'documentos' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-emerald-600" />}
         </button>
 
         <button
@@ -91,13 +137,10 @@ const AdminDocs = () => {
           className={`flex items-center justify-center gap-2 py-4 px-2 font-bold text-sm transition-all duration-300 relative flex-1 ${
             tabActiva === 'avisos' ? 'text-emerald-600 bg-emerald-50/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
           }`}
-          title="Muro de Academia"
         >
           <HiOutlineBell size={24} className="flex-shrink-0" />
           <span className="hidden md:inline truncate">Muro de Academia</span>
-          {tabActiva === 'avisos' && (
-            <div className="absolute bottom-0 left-0 w-full h-0.5 bg-emerald-600" />
-          )}
+          {tabActiva === 'avisos' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-emerald-600" />}
         </button>
 
         <button
@@ -105,56 +148,86 @@ const AdminDocs = () => {
           className={`flex items-center justify-center gap-2 py-4 px-2 font-bold text-sm transition-all duration-300 relative flex-1 ${
             tabActiva === 'formatos' ? 'text-emerald-600 bg-emerald-50/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
           }`}
-          title="Formatos Oficiales"
         >
           <HiOutlineFolderAdd size={24} className="flex-shrink-0" />
           <span className="hidden md:inline truncate">Formatos Oficiales</span>
-          {tabActiva === 'formatos' && (
-            <div className="absolute bottom-0 left-0 w-full h-0.5 bg-emerald-600" />
-          )}
+          {tabActiva === 'formatos' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-emerald-600" />}
         </button>
       </div>
 
-      {/* 📦 CONTENEDOR DE CONTENIDO (Se quitó absolute amontonado para evitar que se trabe) */}
+      {/* CONTENEDOR DE CONTENIDO */}
       <div className="relative min-h-[500px] overflow-hidden">
         
         {/* === VISTA 1: VALIDACIÓN DE DOCUMENTOS === */}
         {tabActiva === 'documentos' && (
           <div className={`animate-slide-${direccion === 'derecha' ? 'in-right' : 'in-left'} w-full`}>
             <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-              <div className="p-4 border-b border-slate-100">
-                <h2 className="font-bold text-slate-700">Documentos por Validar</h2>
+              <div className="p-4 border-b border-slate-100 flex justify-between items-center">
+                <h2 className="font-bold text-slate-700">Documentos Subidos</h2>
+                <button onClick={fetchDocumentos} className="text-xs text-emerald-600 font-bold hover:underline">
+                  Recargar lista
+                </button>
               </div>
+              
               <div className="overflow-x-auto w-full">
-                <table className="w-full text-left min-w-[650px] md:min-w-full">
-                  <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
-                    <tr>
-                      <th className="px-6 py-3">Docente</th>
-                      <th className="px-6 py-3">Archivo</th>
-                      <th className="px-6 py-3">Estado</th>
-                      <th className="px-6 py-3 text-center">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {documentos.map((doc) => (
-                      <tr key={doc.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-6 py-4 text-sm font-medium text-slate-700 whitespace-nowrap">{doc.docente}</td>
-                        <td className="px-6 py-4 text-sm text-slate-500 whitespace-nowrap">{doc.archivo}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                            doc.estado === 'Validado' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
-                          }`}>
-                            {doc.estado}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 flex justify-center gap-2 whitespace-nowrap">
-                          <button onClick={() => cambiarEstado(doc.id, 'Validado')} className="p-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors"><HiOutlineCheck size={18} /></button>
-                          <button onClick={() => cambiarEstado(doc.id, 'Rechazado')} className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"><HiOutlineX size={18} /></button>
-                        </td>
+                {loadingDocs ? (
+                  <div className="flex justify-center items-center py-10">
+                    <p className="text-slate-500 animate-pulse font-medium">Cargando documentos de Supabase...</p>
+                  </div>
+                ) : documentos.length === 0 ? (
+                  <p className="text-center py-10 text-slate-500">No hay documentos en la base de datos.</p>
+                ) : (
+                  <table className="w-full text-left min-w-[650px] md:min-w-full">
+                    <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
+                      <tr>
+                        <th className="px-6 py-3">Información del Archivo</th>
+                        <th className="px-6 py-3">Tipo / Clasificación</th>
+                        <th className="px-6 py-3">Estado</th>
+                        <th className="px-6 py-3 text-center">Validar / Rechazar</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {documentos.map((doc) => (
+                        <tr key={doc.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-6 py-4">
+                            <p className="text-sm font-bold text-slate-700 truncate max-w-[200px]" title={doc.nombre}>
+                              {doc.nombre || "Documento sin nombre"}
+                            </p>
+                            <p className="text-xs text-slate-400">{new Date(doc.fecha).toLocaleDateString()}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-sm text-slate-600">{doc.tipo}</p>
+                            <p className="text-xs text-emerald-600 font-medium">{doc.clasificacion}</p>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                              doc.estado === 'Validado' ? 'bg-emerald-100 text-emerald-700' : 
+                              doc.estado === 'Rechazado' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                            }`}>
+                              {doc.estado || 'Pendiente'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 flex justify-center gap-2 whitespace-nowrap">
+                            <button 
+                              onClick={() => cambiarEstado(doc.id, 'Validado')} 
+                              className="p-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors"
+                              title="Aceptar"
+                            >
+                              <HiOutlineCheck size={18} />
+                            </button>
+                            <button 
+                              onClick={() => cambiarEstado(doc.id, 'Rechazado')} 
+                              className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+                              title="Rechazar"
+                            >
+                              <HiOutlineX size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </div>
           </div>
