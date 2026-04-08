@@ -4,14 +4,13 @@ import MenuLateral from './MenuLateral';
 import AdminDocs from './vistas/AdminDocs';
 import AdminDirector from './vistas/AdminDirector';
 
-
 const Layout = () => {
   return (
     <div className="flex min-h-screen bg-slate-50">
       <MenuLateral />
       <main className="flex-1 p-8 overflow-y-auto h-screen">
         {/* Aquí React Router pone la vista según la URL */}
-        <Outlet /> 
+        <Outlet />
       </main>
     </div>
   );
