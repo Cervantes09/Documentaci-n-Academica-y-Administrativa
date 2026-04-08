@@ -21,17 +21,15 @@ const AdminDirector = () => {
   const [horaRespaldo, setHoraRespaldo] = useState("02:00");
   const [frecuencia, setFrecuencia] = useState("Diario");
 
-  // Simulación de usuarios pendientes
-  const [usuariosPendientes, setUsuariosPendientes] = useState([
-    { id: 1, nombre: "Ing. Alan Brito", correo: "alan.brito@utnay.edu.mx", fecha: "2026-03-26" },
-    { id: 2, nombre: "Lic. Dulce María", correo: "dulce.maria@utnay.edu.mx", fecha: "2026-03-27" },
-  ]);
+  // Estado real de usuarios pendientes
+  const [usuariosPendientes, setUsuariosPendientes] = useState([]);
 
   // ==========================================
-  // CARGA INICIAL DE CONFIGURACIÓN
+  // CARGA INICIAL (CONFIGURACIÓN Y USUARIOS)
   // ==========================================
   useEffect(() => {
-    const obtenerConfiguracion = async () => {
+    const obtenerDatosIniciales = async () => {
+      // 1. Obtener configuración
       try {
         const { data, error } = await supabase
           .from('configuracion_sistema')
@@ -40,15 +38,27 @@ const AdminDirector = () => {
           .single();
 
         if (data) {
-          // Ajustamos formato HH:MM:SS a HH:MM para el input
           setHoraRespaldo(data.hora_respaldo.substring(0, 5));
           setFrecuencia(data.frecuencia);
         }
       } catch (err) {
         console.error("Error al recuperar configuración inicial:", err);
       }
+
+      // 2. Obtener usuarios pendientes (AHORA DESDE LA VISTA SQL)
+      try {
+        const { data: usuarios, error: errorUsuarios } = await supabase
+          .from('vista_usuarios_pendientes') // <- Usamos la vista que cruza con AUTH
+          .select('*');
+
+        if (errorUsuarios) throw errorUsuarios;
+        if (usuarios) setUsuariosPendientes(usuarios);
+      } catch (err) {
+        console.error("Error al recuperar usuarios pendientes:", err);
+      }
     };
-    obtenerConfiguracion();
+
+    obtenerDatosIniciales();
   }, []);
 
   const cambiarTab = (nuevoTab) => {
@@ -58,8 +68,57 @@ const AdminDirector = () => {
     setTabActiva(nuevoTab);
   };
 
-  const asignarRolYBorrar = (id) => {
-    setUsuariosPendientes(usuariosPendientes.filter(u => u.id !== id));
+  // ==========================================
+  // LÓGICA DE APROBACIÓN Y RECHAZO DE USUARIOS
+  // ==========================================
+  const cambiarRol = async (user, nuevoRol) => {
+    try {
+      // Nota: El update sigue siendo a la tabla original 'usuario'
+      const { error } = await supabase
+        .from('usuario')
+        .update({ tipousuario: nuevoRol })
+        .eq('usuarioid', user.usuarioid); 
+
+      if (error) throw error;
+      
+      alert(`✅ Usuario aprobado y asignado como ${nuevoRol.toUpperCase()}.`);
+      // Remover de la vista actual filtrando por usuarioid
+      setUsuariosPendientes(prev => prev.filter(u => u.usuarioid !== user.usuarioid));
+    } catch (error) {
+      alert("❌ Error al asignar rol: " + error.message);
+    }
+  };
+
+  const eliminarUsuario = async (user) => {
+    const confirmar = window.confirm("¿Estás seguro de rechazar y eliminar este usuario por completo?");
+    if (!confirmar) return;
+
+    try {
+      // 1. Eliminar de la tabla pública usando usuarioid
+      const { error: dbError } = await supabase
+        .from('usuario')
+        .delete()
+        .eq('usuarioid', user.usuarioid); 
+
+      if (dbError) throw dbError;
+
+      // 2. Eliminar de la tabla AUTH vía RPC usando la foránea (uid_fk)
+      if (user.uid_fk) {
+        const { error: authError } = await supabase.rpc('eliminar_usuario_auth', { 
+          auth_uid: user.uid_fk 
+        });
+        
+        if (authError) {
+          console.warn("Borrado de la tabla usuario, pero fallo en Auth:", authError);
+        }
+      }
+
+      alert("✅ Usuario eliminado del sistema.");
+      // Actualizamos la vista
+      setUsuariosPendientes(prev => prev.filter(u => u.usuarioid !== user.usuarioid));
+    } catch (error) {
+      alert("❌ Error al eliminar usuario: " + error.message);
+    }
   };
 
   // ==========================================
@@ -88,7 +147,6 @@ const AdminDirector = () => {
   const generarBackup = async () => {
     setCargando(true);
     try {
-      // Ahora incluimos TODAS las tablas vitales
       const tablas = ['DOCUMENTO', 'AVISO', 'configuracion_sistema', 'usuario']; 
       let backupData = {};
 
@@ -134,7 +192,7 @@ const AdminDirector = () => {
           if (error) throw error;
         }
         alert("✅ Sistema restaurado correctamente.");
-        window.location.reload(); // Recargamos para ver los cambios
+        window.location.reload(); 
       } catch (error) {
         console.error(error);
         alert("❌ Error: El archivo no es válido.");
@@ -239,29 +297,27 @@ const AdminDirector = () => {
                     <tr>
                       <th className="px-6 py-3">Nombre</th>
                       <th className="px-6 py-3">Correo</th>
-                      <th className="px-6 py-3">Fecha Registro</th>
                       <th className="px-6 py-3 text-center">Asignar Rol</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {usuariosPendientes.length === 0 ? (
                       <tr>
-                        <td colSpan="4" className="px-6 py-10 text-center text-slate-400 text-sm">No hay usuarios pendientes.</td>
+                        <td colSpan="3" className="px-6 py-10 text-center text-slate-400 text-sm">No hay usuarios pendientes.</td>
                       </tr>
                     ) : (
                       usuariosPendientes.map((user) => (
-                        <tr key={user.id} className="hover:bg-slate-50 transition-colors">
+                        <tr key={user.usuarioid} className="hover:bg-slate-50 transition-colors">
                           <td className="px-6 py-4 text-sm font-medium text-slate-700">{user.nombre}</td>
-                          <td className="px-6 py-4 text-sm text-slate-500">{user.correo}</td>
-                          <td className="px-6 py-4 text-sm text-slate-500">{user.fecha}</td>
+                          <td className="px-6 py-4 text-sm text-slate-500">{user.correo || 'Cargando...'}</td>
                           <td className="px-6 py-4 flex justify-center gap-2">
-                            <button onClick={() => asignarRolYBorrar(user.id)} className="flex items-center gap-1 p-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors text-xs font-bold cursor-pointer">
+                            <button onClick={() => cambiarRol(user, 'docente')} className="flex items-center gap-1 p-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors text-xs font-bold cursor-pointer">
                               <HiOutlineCheck size={16} /> Docente
                             </button>
-                            <button onClick={() => asignarRolYBorrar(user.id)} className="flex items-center gap-1 p-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-xs font-bold cursor-pointer">
+                            <button onClick={() => cambiarRol(user, 'administrativo')} className="flex items-center gap-1 p-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-xs font-bold cursor-pointer">
                               <HiOutlineUserAdd size={16} /> Administrativo
                             </button>
-                            <button onClick={() => asignarRolYBorrar(user.id)} className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors cursor-pointer">
+                            <button onClick={() => eliminarUsuario(user)} className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors cursor-pointer">
                               <HiOutlineTrash size={18} />
                             </button>
                           </td>
