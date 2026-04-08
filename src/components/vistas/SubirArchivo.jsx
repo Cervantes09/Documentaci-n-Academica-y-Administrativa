@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { HiOutlineCloudUpload, HiOutlineX, HiOutlineDocumentText } from "react-icons/hi";
-import { supabase } from '../../lib/supabase'; 
+import { supabase } from '../../lib/supabase';
+import { useSession } from '../../context/dataSesionUsuario';
 
 const SubirArchivo = ({ isOpen, onClose, onUploadSuccess }) => {
+  // Obtenemos los datos del usuario logueado del contexto
+  const { sesion, datosUsuario } = useSession();
+
   const [archivo, setArchivo] = useState(null);
-  const [nombre, setNombre] = useState(""); // 👈 Nuevo estado para el nombre
+  const [nombre, setNombre] = useState(""); 
   const [periodo, setPeriodo] = useState("");
   const [tipo, setTipo] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -12,7 +16,6 @@ const SubirArchivo = ({ isOpen, onClose, onUploadSuccess }) => {
   const periodos = ["ENE-ABR 2026", "MAY-AGO 2026", "SEP-DIC 2026"];
   const tiposDocumentos = ["Planeación Docente", "Lista de Asistencia", "Acta de Academia", "Reporte Final"];
 
-  // Truco UX: Si el usuario elige un archivo, autollenamos el nombre (sin la extensión)
   useEffect(() => {
     if (archivo && !nombre) {
       const nombreSinExtension = archivo.name.split('.').slice(0, -1).join('.');
@@ -32,6 +35,12 @@ const SubirArchivo = ({ isOpen, onClose, onUploadSuccess }) => {
 
     if (!nombre.trim()) {
       alert("Por favor ponle un nombre al documento.");
+      return;
+    }
+
+    // Seguridad: Verificar que tengamos al usuario antes de intentar subir
+    if (!sesion) {
+      alert("No se detectó una sesión activa. Por favor, reingresa al sistema.");
       return;
     }
 
@@ -57,17 +66,19 @@ const SubirArchivo = ({ isOpen, onClose, onUploadSuccess }) => {
       
       const archivoUrl = publicUrlData.publicUrl;
 
-      // 4. Guardar en BD (Ahora incluimos el nombre limpio)
+      // 4. Guardar en BD incluyendo la Foreign Key del usuario
       const { error: dbError } = await supabase
         .from('DOCUMENTO')
         .insert([
           { 
-            nombre: nombre, // 👈 Guardamos el nombre legible
+            nombre: nombre,
             tipo: tipo, 
             clasificacion: periodo, 
             archivo: archivoUrl, 
-            estado: 'Pendiente', // Mejor empezar como Pendiente hasta que se valide
-            fecha: new Date().toISOString()
+            estado: 'Pendiente',
+            fecha: new Date().toISOString(),
+            // Usamos el ID de tu tabla usuario o el UID de Auth
+            usuarioFK: datosUsuario?.usuarioid || sesion.id 
           }
         ]);
 
@@ -75,13 +86,11 @@ const SubirArchivo = ({ isOpen, onClose, onUploadSuccess }) => {
 
       alert("¡Archivo subido correctamente!");
       
-      // Limpiamos
       setArchivo(null);
       setNombre("");
       setPeriodo("");
       setTipo("");
       
-      // Avisamos al padre que recargue y cerramos
       if (onUploadSuccess) onUploadSuccess();
       onClose(); 
 
@@ -122,7 +131,6 @@ const SubirArchivo = ({ isOpen, onClose, onUploadSuccess }) => {
 
         <form onSubmit={handleFormulario} className="p-6 space-y-4">
           
-          {/* 👈 NUEVO CAMPO: Nombre */}
           <div className="space-y-1.5">
             <label className="text-sm font-semibold text-slate-600">Nombre del Documento:</label>
             <input 

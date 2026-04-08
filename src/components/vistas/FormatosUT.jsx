@@ -33,7 +33,7 @@ const FormatosUT = () => {
         <HiOutlineSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
         <input 
           type="text" 
-          placeholder="Buscar formato o categoría..." 
+          placeholder="Buscar formato por nombre..." 
           className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white shadow-sm transition-all"
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
