@@ -75,6 +75,7 @@ function App() {
                       <Route index element={<Academia />} />
                       <Route path="gestion-documentos" element={<AdminDocs />} />
                       <Route path="formatos" element={<FormatosUT />} />
+                      <Route path="expediente" element={<MiExpediente />} />
                     </>
                   )}
 
@@ -85,6 +86,7 @@ function App() {
                       <Route path="academia" element={<Academia />} />
                       <Route path="gestion-documentos" element={<AdminDocs />} />
                       <Route path="formatos" element={<FormatosUT />} />
+                      <Route path="expediente" element={<MiExpediente />} />
                     </>
                   )}
 

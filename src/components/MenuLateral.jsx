@@ -16,23 +16,29 @@ const MenuLateral = () => {
   const rol = datosUsuario?.tipousuario;
 
   const allItems = [
-    // Solo Docente
+
+    // VISTAS EXCLUSIVAS
+
+    // EXCLUSIVO DOCENTE
     { icons: <IoHomeOutline className="w-5 h-5 sm:w-6 sm:h-6" />, label: 'Inicio', path: '/', roles: ['docente'] },
     
     // EXCLUSIVO Director (Usuarios)
-    { icons: <MdOutlineManageAccounts className="w-5 h-5 sm:w-6 sm:h-6" />, label: 'Usuarios', path: '/', roles: ['director'] },
+    { icons: <MdOutlineManageAccounts className="w-5 h-5 sm:w-6 sm:h-6" />, label: 'Usuarios y Backups', path: '/', roles: ['director'] },
     
+    // Gestión Docs (Ahora Administrativo y Director)
+    { icons: <MdOutlineMoveToInbox className="w-5 h-5 sm:w-6 sm:h-6" />, label: 'Administración', path: '/gestion-documentos', roles: ['administrativo', 'director'] },
+
+    { type: 'divider', roles: ['docente', 'director', 'administrativo'] }, 
+
+    //VISTAS GENERICAS
+
     // Academia (Todos)
     { icons: <LuSchool className="w-5 h-5 sm:w-6 sm:h-6" />, label: 'Academia', path: rol === 'docente' ? '/academia' : '/academia', roles: ['administrativo', 'director', 'docente'] },
     
-    { type: 'divider', roles: ['docente', 'director', 'administrativo'] }, 
-
     // Mi Expediente (Docente y Director)
-    { icons: <IoLogoBuffer className="w-5 h-5 sm:w-6 sm:h-6" />, label: 'Mi Expediente', path: '/expediente', roles: ['docente'] },
-    
-    // Gestión Docs (Ahora Administrativo y Director)
-    { icons: <MdOutlineMoveToInbox className="w-5 h-5 sm:w-6 sm:h-6" />, label: 'Gestión Docs', path: '/gestion-documentos', roles: ['administrativo', 'director'] },
-    
+    { icons: <IoLogoBuffer className="w-5 h-5 sm:w-6 sm:h-6" />, label: 'Expediente', path: '/expediente', roles: ['administrativo', 'director', 'docente'] },
+
+
     // Formatos UT (Todos)
     { icons: <IoSchoolSharp className="w-5 h-5 sm:w-6 sm:h-6" />, label: 'Formatos UT', path: '/formatos', roles: ['docente', 'administrativo', 'director'] },
     
