@@ -3,6 +3,7 @@ import { HiOutlineSearch, HiOutlinePlus, HiOutlineDocumentText, HiOutlineDotsVer
 import SubirArchivo from './SubirArchivo.jsx';
 import VistaArchivo from './VistaArchivo.jsx';
 import { supabase } from '../../lib/supabase';
+import AvisoDocumento from './AvisoDocumento.jsx';
 
 const MiExpediente = () => {
   const [busqueda, setBusqueda] = useState("");
@@ -13,25 +14,61 @@ const MiExpediente = () => {
   // Estados para controlar la edición
   const [docAEditar, setDocAEditar] = useState(null); 
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+  
+  // Estado para controlar qué menú de opciones (3 puntitos) está abierto
+  const [menuAbiertoId, setMenuAbiertoId] = useState(null);
 
   // Estados para el visor y descargas
   const [archivoParaVer, setArchivoParaVer] = useState(null);
   const [descargandoId, setDescargandoId] = useState(null);
+
+  // Estados para el Aviso Documento (Aceptado/Rechazado)
+  const [isAvisoOpen, setIsAvisoOpen] = useState(false);
+  const [avisoDocName, setAvisoDocName] = useState("");
+  const [avisoStatus, setAvisoStatus] = useState("");
+
+  // Función para abrir el aviso adaptando tus estatus
+  const abrirAviso = (nombreDocumento, estatusBD) => {
+    setAvisoDocName(nombreDocumento);
+    // Si dice 'Validado', le mandamos 'accepted'. Si no, 'rejected'
+    setAvisoStatus(estatusBD === 'Validado' ? 'accepted' : 'rejected');
+    setIsAvisoOpen(true);
+  };
 
   useEffect(() => {
     let activo = true;
 
     const fetchData = async () => {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('DOCUMENTO')
-        .select('*')
-        .order('fecha', { ascending: false });
+      try {
+        // 1. Saber quién es el usuario de la sesión actual
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          // 2. Buscar su ID interno en tu tabla usuario
+          const { data: perfil } = await supabase
+            .from('usuario')
+            .select('usuarioid')
+            .eq('uid_fk', user.id)
+            .single();
 
-      if (!activo) return;
-      if (error) console.error("Error al obtener expediente:", error);
-      else setArchivos(data || []);
-      
+          if (perfil) {
+            // 3. Traer SOLO los documentos de ese usuario que estén Validados
+            const { data, error } = await supabase
+              .from('DOCUMENTO')
+              .select('*')
+              .eq('usuarioFK', perfil.usuarioid)
+              .eq('estado','Validado')
+              .order('fecha', { ascending: false });
+
+            if (!activo) return;
+            if (error) console.error("Error al obtener expediente:", error);
+            else setArchivos(data || []);
+          }
+        }
+      } catch (err) {
+        console.error("Error general:", err);
+      }
       setLoading(false);
     };
 
@@ -41,12 +78,31 @@ const MiExpediente = () => {
 
   const recargar = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('DOCUMENTO')
-      .select('*')
-      .order('fecha', { ascending: false });
+    try {
+      // Misma lógica de filtrado para cuando se recarga al subir/editar
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        const { data: perfil } = await supabase
+          .from('usuario')
+          .select('usuarioid')
+          .eq('uid_fk', user.id)
+          .single();
 
-    if (!error) setArchivos(data || []);
+        if (perfil) {
+          const { data, error } = await supabase
+            .from('DOCUMENTO')
+            .select('*')
+            .eq('usuarioFK', perfil.usuarioid)
+            .eq('estado', 'Validado')
+            .order('fecha', { ascending: false });
+
+          if (!error) setArchivos(data || []);
+        }
+      }
+    } catch (err) {
+      console.error("Error al recargar:", err);
+    }
     setLoading(false);
   };
 
@@ -79,6 +135,24 @@ const MiExpediente = () => {
       recargar();
     }
     setGuardandoEdicion(false);
+  };
+
+  // Eliminar un documento
+  const eliminarArchivo = async (id) => {
+    const confirmacion = window.confirm("¿Estás seguro de que deseas eliminar este documento?");
+    if (!confirmacion) return;
+
+    const { error } = await supabase
+      .from('DOCUMENTO')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      alert("Error al eliminar: " + error.message);
+    } else {
+      recargar();
+    }
+    setMenuAbiertoId(null);
   };
 
   // Fuerza la descarga directa
@@ -147,18 +221,42 @@ const MiExpediente = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {archivosFiltrados.map((archivo) => (
           <div key={archivo.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all group relative">
-            <div className="flex justify-between items-start mb-4">
+            <div className="flex justify-between items-start mb-4 relative">
               <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
                 <HiOutlineDocumentText size={30} />
               </div>
               
-              <button 
-                onClick={() => setDocAEditar(archivo)}
-                className="text-slate-400 hover:text-emerald-600 hover:bg-slate-50 p-1.5 rounded-lg transition-colors"
-                title="Editar metadatos"
-              >
-                <HiOutlineDotsVertical size={20} />
-              </button>
+              {/* CONTENEDOR DEL MENÚ DE OPCIONES */}
+              <div className="relative">
+                <button 
+                  onClick={() => setMenuAbiertoId(menuAbiertoId === archivo.id ? null : archivo.id)}
+                  className="text-slate-400 hover:text-emerald-600 hover:bg-slate-50 p-1.5 rounded-lg transition-colors"
+                  title="Opciones"
+                >
+                  <HiOutlineDotsVertical size={20} />
+                </button>
+
+                {/* MENÚ DESPLEGABLE */}
+                {menuAbiertoId === archivo.id && (
+                  <div className="absolute right-0 mt-1 w-28 bg-white border border-slate-100 shadow-xl rounded-lg py-1 z-20 overflow-hidden">
+                    <button 
+                      onClick={() => {
+                        setDocAEditar(archivo);
+                        setMenuAbiertoId(null);
+                      }}
+                      className="w-full text-left px-4 py-2 text-xs font-bold text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                    >
+                      Editar
+                    </button>
+                    <button 
+                      onClick={() => eliminarArchivo(archivo.id)}
+                      className="w-full text-left px-4 py-2 text-xs font-bold text-red-500 hover:bg-red-50 transition-colors"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
             
             <h3 className="font-bold text-slate-700 text-sm truncate mb-1" title={archivo.nombre || archivo.archivo}>
@@ -171,10 +269,22 @@ const MiExpediente = () => {
             
             <div className="flex justify-between items-center text-[11px] font-medium border-t pt-3">
               <span className="text-slate-400">{new Date(archivo.fecha).toLocaleDateString()}</span>
-              <span className={`px-2 py-0.5 rounded-full ${
-                archivo.estado === 'Validado' ? 'bg-emerald-100 text-emerald-700' : 
-                archivo.estado === 'Rechazado' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
-              }`}>
+              
+              {/* PASTILLA DE ESTATUS MODIFICADA PARA ABRIR EL AVISO */}
+              <span 
+                onClick={() => {
+                  if(archivo.estado === 'Validado' || archivo.estado === 'Rechazado') {
+                    abrirAviso(archivo.nombre || archivo.archivo?.split('/').pop() || "Documento", archivo.estado);
+                  }
+                }}
+                className={`px-2 py-0.5 rounded-full ${
+                  archivo.estado === 'Validado' || archivo.estado === 'Rechazado' ? 'cursor-pointer hover:opacity-80 shadow-sm' : ''
+                } ${
+                  archivo.estado === 'Validado' ? 'bg-emerald-100 text-emerald-700' : 
+                  archivo.estado === 'Rechazado' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                }`}
+                title={archivo.estado === 'Validado' || archivo.estado === 'Rechazado' ? "Clic para ver detalles" : ""}
+              >
                 {archivo.estado}
               </span>
             </div>
@@ -262,6 +372,14 @@ const MiExpediente = () => {
       <VistaArchivo 
         archivo={archivoParaVer} 
         onClose={() => setArchivoParaVer(null)} 
+      />
+
+      {/* AVISO DOCUMENTO INTEGRADO (Aceptado/Rechazado) */}
+      <AvisoDocumento 
+        isOpen={isAvisoOpen} 
+        onClose={() => setIsAvisoOpen(false)} 
+        documentName={avisoDocName} 
+        status={avisoStatus} 
       />
 
     </div>

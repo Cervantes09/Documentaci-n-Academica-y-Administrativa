@@ -1,26 +1,123 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { HiOutlineDocumentText, HiOutlineCloudUpload, HiOutlineCheckCircle, HiOutlineClock } from "react-icons/hi";
 import SubirArchivo from './SubirArchivo.jsx'; // Tu componente del modal
+import { supabase } from '../../lib/supabase'; // Importación de Supabase
 
 const PanelDashboard = () => {
 
   // 1. Estado para controlar si el modal está abierto o cerrado
-    const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Estado para guardar los documentos reales de la BD
+  const [documentos, setDocumentos] = useState([]);
+  const [descargandoId, setDescargandoId] = useState(null);
 
-  // Datos simulados para las Cards 
+  // Efecto para obtener los datos al cargar el Dashboard
+  useEffect(() => {
+    let activo = true;
+
+    const fetchData = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          const { data: perfil } = await supabase
+            .from('usuario')
+            .select('usuarioid')
+            .eq('uid_fk', user.id)
+            .single();
+
+          if (perfil) {
+            // Traemos TODOS los documentos del usuario para hacer los cálculos
+            const { data, error } = await supabase
+              .from('DOCUMENTO')
+              .select('*')
+              .eq('usuarioFK', perfil.usuarioid)
+              .order('fecha', { ascending: false });
+
+            if (!activo) return;
+            if (error) console.error("Error al obtener documentos para dashboard:", error);
+            else setDocumentos(data || []);
+          }
+        }
+      } catch (err) {
+        console.error("Error general en dashboard:", err);
+      }
+    };
+
+    fetchData();
+    return () => { activo = false; };
+  }, []);
+
+  // Función para recargar la tabla después de subir un archivo nuevo
+  const recargar = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: perfil } = await supabase
+            .from('usuario')
+            .select('usuarioid')
+            .eq('uid_fk', user.id)
+            .single();
+
+          if (perfil) {
+            const { data, error } = await supabase
+              .from('DOCUMENTO')
+              .select('*')
+              .eq('usuarioFK', perfil.usuarioid)
+              .order('fecha', { ascending: false });
+
+            if (!error) setDocumentos(data || []);
+          }
+        }
+      } catch (err) {
+        console.error("Error al recargar dashboard:", err);
+      }
+  };
+
+  // Función para descargar desde la tabla
+  const forzarDescarga = async (url, nombreOriginal, id) => {
+    try {
+      setDescargandoId(id); 
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      const extension = url.split('.').pop().split('?')[0]; 
+      link.download = `${nombreOriginal || 'Documento'}.${extension}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl); 
+    } catch (error) {
+      console.error("Error al descargar:", error);
+      alert("Hubo un problema al intentar descargar el archivo.");
+    } finally {
+      setDescargandoId(null);
+    }
+  };
+
+  // Cálculos dinámicos para las Cards
+  const totalDocs = documentos.length;
+  
+  // Calculamos los subidos hoy (comparando solo la fecha, sin horas)
+  const fechaHoy = new Date().toLocaleDateString();
+  const subidosHoy = documentos.filter(doc => new Date(doc.fecha).toLocaleDateString() === fechaHoy).length;
+  
+  const validados = documentos.filter(doc => doc.estado === 'Validado').length;
+  const pendientes = documentos.filter(doc => doc.estado === 'Pendiente').length;
+
+  // Datos dinámicos para las Cards (reemplazando los simulados)
   const stats = [
-    { label: "Total Documentos", value: "12", icon: <HiOutlineDocumentText size={24}/>, color: "text-blue-600", bg: "bg-blue-100" },
-    { label: "Subidos hoy", value: "2", icon: <HiOutlineCloudUpload size={24}/>, color: "text-emerald-600", bg: "bg-emerald-100" },
-    { label: "Validados", value: "9", icon: <HiOutlineCheckCircle size={24}/>, color: "text-purple-600", bg: "bg-purple-100" },
-    { label: "Pendientes", value: "3", icon: <HiOutlineClock size={24}/>, color: "text-amber-600", bg: "bg-amber-100" },
+    { label: "Total Documentos", value: totalDocs.toString(), icon: <HiOutlineDocumentText size={24}/>, color: "text-blue-600", bg: "bg-blue-100" },
+    { label: "Subidos hoy", value: subidosHoy.toString(), icon: <HiOutlineCloudUpload size={24}/>, color: "text-emerald-600", bg: "bg-emerald-100" },
+    { label: "Validados", value: validados.toString(), icon: <HiOutlineCheckCircle size={24}/>, color: "text-purple-600", bg: "bg-purple-100" },
+    { label: "Pendientes", value: pendientes.toString(), icon: <HiOutlineClock size={24}/>, color: "text-amber-600", bg: "bg-amber-100" },
   ];
 
-  // Datos simulados para la Tabla
-  const recentFiles = [
-    { id: 1, name: "Planeacion_Enero_2026.pdf", type: "PDF", date: "2026-03-15", status: "Validado" },
-    { id: 2, name: "Lista_Asistencia_IDGS81.xlsx", type: "EXCEL", date: "2026-03-18", status: "Pendiente" },
-    { id: 3, name: "Acta_Academia_Marzo.pdf", type: "PDF", date: "2026-03-19", status: "En Revisión" },
-  ];
+  // Obtenemos solo los 5 más recientes para la Tabla
+  const recentFiles = documentos.slice(0, 5);
 
   return (
     <div className="space-y-8">
@@ -63,25 +160,42 @@ const PanelDashboard = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {recentFiles.map((file) => (
-                <tr key={file.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 text-sm font-medium text-slate-700">{file.name}</td>
-                  <td className="px-6 py-4 text-xs text-slate-500">
-                    <span className="px-2 py-1 bg-slate-100 rounded text-[10px] font-bold">{file.type}</span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-500">{file.date}</td>
-                  <td className="px-6 py-4">
-                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full 
-                      ${file.status === 'Validado' ? 'bg-emerald-100 text-emerald-700' : 
-                        file.status === 'Pendiente' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
-                      {file.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <button className="text-emerald-600 hover:text-emerald-800 font-bold text-xs cursor-pointer">Descargar</button>
+              {recentFiles.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="px-6 py-8 text-center text-slate-400 text-sm">
+                    No hay documentos recientes.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                recentFiles.map((file) => (
+                  <tr key={file.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4 text-sm font-medium text-slate-700">
+                      {file.nombre || file.archivo?.split('/').pop() || "Documento"}
+                    </td>
+                    <td className="px-6 py-4 text-xs text-slate-500">
+                      <span className="px-2 py-1 bg-slate-100 rounded text-[10px] font-bold uppercase">{file.tipo}</span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-500">{new Date(file.fecha).toLocaleDateString()}</td>
+                    <td className="px-6 py-4">
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full 
+                        ${file.estado === 'Validado' ? 'bg-emerald-100 text-emerald-700' : 
+                          file.estado === 'Pendiente' ? 'bg-amber-100 text-amber-700' : 
+                          file.estado === 'Rechazado' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {file.estado || 'Pendiente'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <button 
+                        onClick={() => forzarDescarga(file.archivo, file.nombre, file.id)}
+                        disabled={descargandoId === file.id}
+                        className="text-emerald-600 hover:text-emerald-800 font-bold text-xs cursor-pointer disabled:opacity-50"
+                      >
+                        {descargandoId === file.id ? 'Descargando...' : 'Descargar'}
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -100,6 +214,7 @@ const PanelDashboard = () => {
       <SubirArchivo 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
+        onUploadSuccess={recargar} // Agregamos esto para que refresque al subir
       />
 
     </div>
