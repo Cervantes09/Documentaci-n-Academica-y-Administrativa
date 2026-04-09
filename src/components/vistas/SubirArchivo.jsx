@@ -3,7 +3,8 @@ import { HiOutlineCloudUpload, HiOutlineX, HiOutlineDocumentText } from "react-i
 import { supabase } from '../../lib/supabase';
 import { useSession } from '../../context/dataSesionUsuario';
 
-const SubirArchivo = ({ isOpen, onClose, onUploadSuccess }) => {
+// Agregamos userRole a las propiedades que recibe el componente
+const SubirArchivo = ({ isOpen, onClose, onUploadSuccess, userRole }) => {
   // Obtenemos los datos del usuario logueado del contexto
   const { sesion, datosUsuario } = useSession();
 
@@ -75,7 +76,8 @@ const SubirArchivo = ({ isOpen, onClose, onUploadSuccess }) => {
             tipo: tipo, 
             clasificacion: periodo, 
             archivo: archivoUrl, 
-            estado: 'Pendiente',
+            // AQUÍ ESTÁ LA MAGIA: Condicionamos el estado según el rol
+            estado: (userRole === 'administrativo' || userRole === 'director') ? 'Validado' : 'Pendiente',
             fecha: new Date().toISOString(),
             // Usamos el ID de tu tabla usuario o el UID de Auth
             usuarioFK: datosUsuario?.usuarioid || sesion.id 

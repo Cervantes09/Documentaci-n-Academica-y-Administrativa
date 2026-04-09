@@ -27,10 +27,19 @@ const MiExpediente = () => {
   const [avisoDocName, setAvisoDocName] = useState("");
   const [avisoStatus, setAvisoStatus] = useState("");
 
+  // ====== ESTADOS PARA LOS FILTROS DE ROLES ======
+  const [userId, setUserId] = useState(null); // Guardar el ID de quien navega
+  const [userRole, setUserRole] = useState("");
+  const [docentes, setDocentes] = useState([]);
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  
+  // Estados de los nuevos filtros ("checkboxes" estilo botones)
+  const [modoVista, setModoVista] = useState('propios'); // 'propios' o 'docentes'
+  const [filtroDocente, setFiltroDocente] = useState(""); // "" = Todos, ID = Uno específico
+
   // Función para abrir el aviso adaptando tus estatus
   const abrirAviso = (nombreDocumento, estatusBD) => {
     setAvisoDocName(nombreDocumento);
-    // Si dice 'Validado', le mandamos 'accepted'. Si no, 'rejected'
     setAvisoStatus(estatusBD === 'Validado' ? 'accepted' : 'rejected');
     setIsAvisoOpen(true);
   };
@@ -41,25 +50,45 @@ const MiExpediente = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // 1. Saber quién es el usuario de la sesión actual
         const { data: { user } } = await supabase.auth.getUser();
         
         if (user) {
-          // 2. Buscar su ID interno en tu tabla usuario
           const { data: perfil } = await supabase
             .from('usuario')
-            .select('usuarioid')
+            .select('usuarioid, tipousuario')
             .eq('uid_fk', user.id)
             .single();
 
           if (perfil) {
-            // 3. Traer SOLO los documentos de ese usuario que estén Validados
-            const { data, error } = await supabase
+            setUserId(perfil.usuarioid);
+            setUserRole(perfil.tipousuario);
+
+            // Si es administrativo o director, traer lista de correos de docentes
+            if (perfil.tipousuario === 'administrativo' || perfil.tipousuario === 'director') {
+              const { data: listaDocentes } = await supabase
+                .from('usuario')
+                .select('usuarioid, email')
+                .eq('tipousuario', 'docente');
+              
+              if (listaDocentes) {
+                setDocentes(listaDocentes);
+              }
+            }
+
+            // Traemos SOLO los documentos con estado "Validado" excluyendo los Formatos Oficiales
+            let query = supabase
               .from('DOCUMENTO')
               .select('*')
-              .eq('usuarioFK', perfil.usuarioid)
-              .eq('estado','Validado')
+              .eq('estado', 'Validado')
+              .neq('tipo', 'Formato Oficial') 
               .order('fecha', { ascending: false });
+
+            // Si es docente, bloqueamos para que SOLO pida los suyos a la base de datos
+            if (perfil.tipousuario === 'docente') {
+              query = query.eq('usuarioFK', perfil.usuarioid);
+            }
+
+            const { data, error } = await query;
 
             if (!activo) return;
             if (error) console.error("Error al obtener expediente:", error);
@@ -79,24 +108,29 @@ const MiExpediente = () => {
   const recargar = async () => {
     setLoading(true);
     try {
-      // Misma lógica de filtrado para cuando se recarga al subir/editar
       const { data: { user } } = await supabase.auth.getUser();
-      
       if (user) {
         const { data: perfil } = await supabase
           .from('usuario')
-          .select('usuarioid')
+          .select('usuarioid, tipousuario')
           .eq('uid_fk', user.id)
           .single();
 
         if (perfil) {
-          const { data, error } = await supabase
+          setUserId(perfil.usuarioid);
+          
+          let query = supabase
             .from('DOCUMENTO')
             .select('*')
-            .eq('usuarioFK', perfil.usuarioid)
             .eq('estado', 'Validado')
+            .neq('tipo', 'Formato Oficial') // Exclusión del Formato Oficial en la recarga
             .order('fecha', { ascending: false });
 
+          if (perfil.tipousuario === 'docente') {
+            query = query.eq('usuarioFK', perfil.usuarioid);
+          }
+
+          const { data, error } = await query;
           if (!error) setArchivos(data || []);
         }
       }
@@ -106,15 +140,34 @@ const MiExpediente = () => {
     setLoading(false);
   };
 
-  // Buscamos por nombre real o URL
+  // Lógica pesada de los filtros: Nombre + Tus propios botones
   const archivosFiltrados = archivos.filter(archivo => {
+    // 1. Filtro por caja de texto
     const termino = busqueda.toLowerCase();
     const nombreDoc = archivo.nombre?.toLowerCase() || "";
     const urlDoc = archivo.archivo?.toLowerCase() || "";
-    return nombreDoc.includes(termino) || urlDoc.includes(termino);
+    const coincideTexto = nombreDoc.includes(termino) || urlDoc.includes(termino);
+    
+    // 2. Filtro por el mecanismo de "Mis Archivos" vs "Docentes"
+    let coincideVista = true;
+    if (userRole === 'administrativo' || userRole === 'director') {
+      if (modoVista === 'propios') {
+        // Solo ver los míos
+        coincideVista = archivo.usuarioFK === userId;
+      } else if (modoVista === 'docentes') {
+        if (filtroDocente === "") {
+          // Todos los docentes (verificamos que el dueño del documento esté en la lista de profes)
+          coincideVista = docentes.some(d => d.usuarioid === archivo.usuarioFK);
+        } else {
+          // Un profe en específico
+          coincideVista = archivo.usuarioFK === filtroDocente;
+        }
+      }
+    }
+
+    return coincideTexto && coincideVista;
   });
 
-  // Guardar cambios de edición
   const guardarEdicion = async (e) => {
     e.preventDefault();
     setGuardandoEdicion(true);
@@ -137,15 +190,11 @@ const MiExpediente = () => {
     setGuardandoEdicion(false);
   };
 
-  // Eliminar un documento
   const eliminarArchivo = async (id) => {
     const confirmacion = window.confirm("¿Estás seguro de que deseas eliminar este documento?");
     if (!confirmacion) return;
 
-    const { error } = await supabase
-      .from('DOCUMENTO')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('DOCUMENTO').delete().eq('id', id);
 
     if (error) {
       alert("Error al eliminar: " + error.message);
@@ -155,25 +204,19 @@ const MiExpediente = () => {
     setMenuAbiertoId(null);
   };
 
-  // Fuerza la descarga directa
   const forzarDescarga = async (url, nombreOriginal, id) => {
     try {
       setDescargandoId(id); 
-      
       const response = await fetch(url);
       const blob = await response.blob();
       const blobUrl = window.URL.createObjectURL(blob);
-      
       const link = document.createElement('a');
       link.href = blobUrl;
-      
       const extension = url.split('.').pop().split('?')[0]; 
       link.download = `${nombreOriginal || 'Documento'}.${extension}`;
-      
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
       window.URL.revokeObjectURL(blobUrl); 
     } catch (error) {
       console.error("Error al descargar:", error);
@@ -187,13 +230,13 @@ const MiExpediente = () => {
     <div className="space-y-6 relative">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Mi Expediente</h1>
+          <h1 className="text-2xl font-bold text-slate-800">Expediente</h1>
           <p className="text-slate-500 text-sm">Gestiona y organiza tus documentos académicos oficiales.</p>
         </div>
         
         <button 
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold transition-all shadow-md active:scale-95"
+          className="flex items-center cursor-pointer justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold transition-all shadow-md active:scale-95"
         >
           <HiOutlinePlus size={20} />
           <span>Subir Archivo</span>
@@ -211,11 +254,86 @@ const MiExpediente = () => {
             onChange={(e) => setBusqueda(e.target.value)}
           />
         </div>
+
+        {/* ====== MENÚ DE FILTROS AVANZADOS (SOLO ADMIN/DIRECTOR) ====== */}
+        {(userRole === 'administrativo' || userRole === 'director') && (
+          <div className="relative">
+            <button 
+              onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
+              className={`h-full flex items-center justify-center gap-2 px-4 py-2 border rounded-lg transition-all shadow-sm font-medium ${
+                modoVista === 'docentes'
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-700' 
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <HiOutlineFilter size={20} />
+              <span className="hidden sm:inline">
+                {modoVista === 'propios' ? "Mis Archivos" : (filtroDocente === "" ? "Docs. Docentes" : "Filtrado")}
+              </span>
+            </button>
+
+            {/* Panel Desplegable de Filtros */}
+            {isFilterMenuOpen && (
+              <div className="absolute right-0 mt-2 w-72 bg-white border border-slate-100 shadow-xl rounded-xl py-2 z-30 overflow-hidden">
+                
+                {/* Los "Checkboxes" convertidos a botones toggle */}
+                <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+                  <p className="text-xs font-bold text-slate-500 uppercase mb-2">Mostrar:</p>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => setModoVista('propios')}
+                      className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${modoVista === 'propios' ? 'bg-emerald-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                    >
+                      Mis Archivos
+                    </button>
+                    <button 
+                      onClick={() => { setModoVista('docentes'); setFiltroDocente(""); }}
+                      className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${modoVista === 'docentes' ? 'bg-emerald-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                    >
+                      De Docentes
+                    </button>
+                  </div>
+                </div>
+
+                {/* Lista que solo se muestra si está en "De Docentes" */}
+                {modoVista === 'docentes' && (
+                  <>
+                    <div className="px-3 py-2 border-b border-slate-100 bg-slate-50 mb-1">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">Seleccionar Docente Específico</p>
+                    </div>
+                    
+                    <div className="max-h-56 overflow-y-auto">
+                      <button 
+                        onClick={() => { setFiltroDocente(""); setIsFilterMenuOpen(false); }}
+                        className={`w-full text-left cursor-pointer px-4 py-2 text-sm transition-colors ${filtroDocente === "" ? 'bg-emerald-50 text-emerald-700 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}
+                      >
+                        ✅ Todos los Docentes
+                      </button>
+                      {docentes.map(docente => (
+                        <button 
+                          key={docente.usuarioid}
+                          onClick={() => { setFiltroDocente(docente.usuarioid); setIsFilterMenuOpen(false); }}
+                          className={`w-full text-left cursor-pointer px-4 py-2 text-sm transition-colors truncate ${filtroDocente === docente.usuarioid ? 'bg-emerald-50 text-emerald-700 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}
+                          title={docente.email}
+                        >
+                          {docente.email}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {loading && <p className="text-emerald-600 font-bold animate-pulse text-center py-10">Cargando tu expediente...</p>}
       {!loading && archivosFiltrados.length === 0 && (
-        <div className="text-center py-10 text-slate-400">No se encontraron documentos.</div>
+        <div className="text-center py-10 text-slate-400 flex flex-col items-center">
+          <p>No se encontraron documentos.</p>
+          {modoVista === 'docentes' && <span className="text-xs mt-1 text-slate-300">(Prueba seleccionando "Mis Archivos" u otro docente)</span>}
+        </div>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -226,7 +344,6 @@ const MiExpediente = () => {
                 <HiOutlineDocumentText size={30} />
               </div>
               
-              {/* CONTENEDOR DEL MENÚ DE OPCIONES */}
               <div className="relative">
                 <button 
                   onClick={() => setMenuAbiertoId(menuAbiertoId === archivo.id ? null : archivo.id)}
@@ -236,21 +353,17 @@ const MiExpediente = () => {
                   <HiOutlineDotsVertical size={20} />
                 </button>
 
-                {/* MENÚ DESPLEGABLE */}
                 {menuAbiertoId === archivo.id && (
                   <div className="absolute right-0 mt-1 w-28 bg-white border border-slate-100 shadow-xl rounded-lg py-1 z-20 overflow-hidden">
                     <button 
-                      onClick={() => {
-                        setDocAEditar(archivo);
-                        setMenuAbiertoId(null);
-                      }}
-                      className="w-full text-left px-4 py-2 text-xs font-bold text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                      onClick={() => { setDocAEditar(archivo); setMenuAbiertoId(null); }}
+                      className="w-full text-left cursor-pointer px-4 py-2 text-xs font-bold text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
                     >
                       Editar
                     </button>
                     <button 
                       onClick={() => eliminarArchivo(archivo.id)}
-                      className="w-full text-left px-4 py-2 text-xs font-bold text-red-500 hover:bg-red-50 transition-colors"
+                      className="w-full text-left cursor-pointer px-4 py-2 text-xs font-bold text-red-500 hover:bg-red-50 transition-colors"
                     >
                       Eliminar
                     </button>
@@ -269,8 +382,6 @@ const MiExpediente = () => {
             
             <div className="flex justify-between items-center text-[11px] font-medium border-t pt-3">
               <span className="text-slate-400">{new Date(archivo.fecha).toLocaleDateString()}</span>
-              
-              {/* PASTILLA DE ESTATUS MODIFICADA PARA ABRIR EL AVISO */}
               <span 
                 onClick={() => {
                   if(archivo.estado === 'Validado' || archivo.estado === 'Rechazado') {
@@ -283,13 +394,11 @@ const MiExpediente = () => {
                   archivo.estado === 'Validado' ? 'bg-emerald-100 text-emerald-700' : 
                   archivo.estado === 'Rechazado' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
                 }`}
-                title={archivo.estado === 'Validado' || archivo.estado === 'Rechazado' ? "Clic para ver detalles" : ""}
               >
                 {archivo.estado}
               </span>
             </div>
 
-            {/* BOTONES DE VISOR Y DESCARGA ACTUALIZADOS */}
             <div className="absolute inset-x-0 bottom-0 p-4 bg-white/95 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity rounded-b-xl border-t">
               <button 
                 onClick={() => setArchivoParaVer(archivo)}
@@ -309,9 +418,14 @@ const MiExpediente = () => {
         ))}
       </div>
 
-      <SubirArchivo isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onUploadSuccess={recargar} />
+      <SubirArchivo 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onUploadSuccess={recargar} 
+        userRole={userRole}
+      />
       
-      {/* MODAL DE EDICIÓN RÁPIDA */}
+      {/* Modal Edición (Oculto) */}
       {docAEditar && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden relative border border-slate-100">
@@ -319,47 +433,25 @@ const MiExpediente = () => {
               <h2 className="font-bold text-slate-800">Editar Documento</h2>
               <button onClick={() => setDocAEditar(null)} className="text-slate-400 hover:text-red-500"><HiOutlineX size={20}/></button>
             </div>
-            
             <form onSubmit={guardarEdicion} className="p-5 space-y-4">
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-600">Nombre:</label>
-                <input 
-                  type="text" 
-                  value={docAEditar.nombre || ""} 
-                  onChange={(e) => setDocAEditar({...docAEditar, nombre: e.target.value})}
-                  className="w-full p-2 border border-slate-200 rounded text-sm focus:ring-1 focus:ring-emerald-500 outline-none" 
-                  required
-                />
+                <input type="text" value={docAEditar.nombre || ""} onChange={(e) => setDocAEditar({...docAEditar, nombre: e.target.value})} className="w-full p-2 border border-slate-200 rounded text-sm focus:ring-1 focus:ring-emerald-500 outline-none" required />
               </div>
-              
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-600">Tipo:</label>
-                <select 
-                  value={docAEditar.tipo || ""} 
-                  onChange={(e) => setDocAEditar({...docAEditar, tipo: e.target.value})}
-                  className="w-full p-2 border border-slate-200 rounded text-sm outline-none"
-                >
+                <select value={docAEditar.tipo || ""} onChange={(e) => setDocAEditar({...docAEditar, tipo: e.target.value})} className="w-full p-2 border border-slate-200 rounded text-sm outline-none">
                   {["Planeación Docente", "Lista de Asistencia", "Acta de Academia", "Reporte Final"].map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
-
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-600">Periodo:</label>
-                <select 
-                  value={docAEditar.clasificacion || ""} 
-                  onChange={(e) => setDocAEditar({...docAEditar, clasificacion: e.target.value})}
-                  className="w-full p-2 border border-slate-200 rounded text-sm outline-none"
-                >
+                <select value={docAEditar.clasificacion || ""} onChange={(e) => setDocAEditar({...docAEditar, clasificacion: e.target.value})} className="w-full p-2 border border-slate-200 rounded text-sm outline-none">
                   {["ENE-ABR 2026", "MAY-AGO 2026", "SEP-DIC 2026"].map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
-
               <div className="pt-3">
-                <button 
-                  type="submit" 
-                  disabled={guardandoEdicion}
-                  className="w-full py-2 bg-emerald-600 text-white font-bold rounded-lg text-sm hover:bg-emerald-700 disabled:opacity-50"
-                >
+                <button type="submit" disabled={guardandoEdicion} className="w-full py-2 bg-emerald-600 text-white font-bold rounded-lg text-sm hover:bg-emerald-700 disabled:opacity-50">
                   {guardandoEdicion ? "Guardando..." : "Guardar Cambios"}
                 </button>
               </div>
@@ -368,20 +460,8 @@ const MiExpediente = () => {
         </div>
       )}
 
-      {/* VISOR DE ARCHIVOS INTEGRADO */}
-      <VistaArchivo 
-        archivo={archivoParaVer} 
-        onClose={() => setArchivoParaVer(null)} 
-      />
-
-      {/* AVISO DOCUMENTO INTEGRADO (Aceptado/Rechazado) */}
-      <AvisoDocumento 
-        isOpen={isAvisoOpen} 
-        onClose={() => setIsAvisoOpen(false)} 
-        documentName={avisoDocName} 
-        status={avisoStatus} 
-      />
-
+      <VistaArchivo archivo={archivoParaVer} onClose={() => setArchivoParaVer(null)} />
+      <AvisoDocumento isOpen={isAvisoOpen} onClose={() => setIsAvisoOpen(false)} documentName={avisoDocName} status={avisoStatus} />
     </div>
   );
 };

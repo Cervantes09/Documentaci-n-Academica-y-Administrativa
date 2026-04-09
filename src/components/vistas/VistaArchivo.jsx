@@ -35,7 +35,7 @@ const VistaArchivo = ({ archivo, onClose }) => {
           {/* Botón de cerrar con animación de giro en el hover y color sólido */}
           <button 
             onClick={onClose} 
-            className="group p-2.5 text-slate-400 hover:text-white hover:bg-red-500 rounded-xl transition-all duration-200 active:scale-95"
+            className="group p-2.5 cursor-pointer text-slate-400 hover:text-white hover:bg-red-500 rounded-xl transition-all duration-200 active:scale-95"
             title="Cerrar visor"
           >
             <HiOutlineX size={22} className="group-hover:rotate-90 transition-transform duration-200" />
