@@ -147,7 +147,7 @@ const AdminDirector = () => {
   const generarBackup = async () => {
     setCargando(true);
     try {
-      const tablas = ['DOCUMENTO', 'AVISO', 'configuracion_sistema', 'usuario']; 
+      const tablas = ['DOCUMENTO', 'AVISO', 'configuracion_sistema', 'usuario', 'LOGS']; 
       let backupData = {};
 
       for (const tabla of tablas) {
@@ -251,6 +251,61 @@ const AdminDirector = () => {
     }
   }; 
 
+  // ==========================================
+  // NUEVA LÓGICA: REPORTE DE LOGS (INCIDENCIAS)
+  // ==========================================
+  const generarReporteLogsPDF = async () => {
+    try {
+      const hoy = new Date();
+      // Filtramos por el mes actual
+      const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString();
+      const finMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0, 23, 59, 59).toISOString();
+
+      // Basado en tus capturas, la tabla se llama 'LOGS'
+      const { data: logs, error } = await supabase
+        .from('LOGS')
+        .select('asunto, created_at')
+        .gte('created_at', inicioMes)
+        .lte('created_at', finMes);
+
+      if (error) throw error;
+      if (!logs || logs.length === 0) {
+        alert("No hay incidencias registradas en este mes.");
+        return;
+      }
+
+      const doc = new jsPDF();
+      autoTable(doc, {
+        startY: 35,
+        head: [['Asunto', 'Fecha', 'Hora']],
+        body: logs.map(log => {
+          const fechaObj = new Date(log.created_at);
+          // Separamos la fecha y la hora para que la gente normal lo entienda xd
+          return [
+            log.asunto || 'Sin asunto',
+            fechaObj.toLocaleDateString('es-MX'), // Da un formato como DD/MM/YYYY
+            fechaObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute:'2-digit' }) // Da un formato como HH:MM
+          ];
+        }),
+        headStyles: { fillColor: [5, 150, 105], textColor: [255, 255, 255], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [245, 255, 250] },
+        styles: { fontSize: 10, cellPadding: 3 },
+        didDrawPage: (data) => {
+          doc.setFontSize(18);
+          doc.setTextColor(5, 150, 105);
+          doc.text(`Reporte de Incidencias - ${new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(hoy)}`, 14, 20);
+          doc.setFontSize(10);
+          doc.setTextColor(100);
+          doc.text(`Generado el: ${new Date().toLocaleString()}`, 14, 28);
+        }
+      });
+      doc.save(`Reporte_Incidencias_${Date.now()}.pdf`);
+    } catch (error) {
+      console.error("Error al generar PDF de logs:", error);
+      alert("Error crítico al generar el reporte de incidencias: " + error.message);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <header>
@@ -344,7 +399,8 @@ const AdminDirector = () => {
                   <button onClick={generarReportePDF} className="w-full bg-slate-800 hover:bg-slate-900 cursor-pointer text-white font-bold py-3 px-4 rounded-lg text-sm transition-all flex items-center justify-center gap-2">
                     📄 Reporte de Documentos Entregados
                   </button>
-                  <button className="w-full bg-slate-100 hover:bg-slate-200 cursor-pointer text-slate-800 font-bold py-3 px-4 rounded-lg text-sm transition-all flex items-center justify-center gap-2">
+                  {/* AQUÍ SE AGREGÓ LA LLAMADA AL NUEVO REPORTE */}
+                  <button onClick={generarReporteLogsPDF} className="w-full bg-slate-100 hover:bg-slate-200 cursor-pointer text-slate-800 font-bold py-3 px-4 rounded-lg text-sm transition-all flex items-center justify-center gap-2">
                     📄 Reporte de Logs
                   </button>
                 </div>

@@ -15,18 +15,20 @@ Deno.serve(async (req) => {
     console.log("Iniciando proceso de respaldo...")
 
     // 3. Jalar los datos de todas tus tablas
-    const { data: avisos } = await supabase.from('AVISO').select('*')
-    const { data: documentos } = await supabase.from('DOCUMENTO').select('*')
-    const { data: usuarios } = await supabase.from('usuario').select('*')
-    const { data: config } = await supabase.from('configuracion_sistema').select('*')
+    const { data: avisos } = await supabase.from('AVISO').select('*');
+    const { data: documentos } = await supabase.from('DOCUMENTO').select('*');
+    const { data: usuarios } = await supabase.from('usuario').select('*');
+    const { data: config } = await supabase.from('configuracion_sistema').select('*');
+    const { data: logs } = await supabase.from('LOGS').select('*'); //
 
     const backup = { 
       AVISO: avisos, 
       DOCUMENTO: documentos, 
       usuario: usuarios,
       configuracion: config,
+      LOGS: logs, // <-- Y aquí los metemos al JSON
       fecha_generacion: new Date().toISOString()
-    }
+    };
     
     const fecha = new Date().toISOString().split('T')[0]
     const nombreArchivo = `backup_${fecha}_${Date.now()}.json`
