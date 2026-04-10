@@ -4,6 +4,7 @@ import SubirArchivo from './SubirArchivo.jsx';
 import VistaArchivo from './VistaArchivo.jsx';
 import { supabase } from '../../lib/supabase';
 import AvisoDocumento from './AvisoDocumento.jsx';
+import { registrarLog } from '../../lib/logger'; // <-- NUEVO: Importamos el helper de logs
 
 const MiExpediente = () => {
   const [busqueda, setBusqueda] = useState("");
@@ -30,6 +31,7 @@ const MiExpediente = () => {
   // ====== ESTADOS PARA LOS FILTROS DE ROLES ======
   const [userId, setUserId] = useState(null); // Guardar el ID de quien navega
   const [userRole, setUserRole] = useState("");
+  const [userName, setUserName] = useState(""); // <-- NUEVO: Guardar el nombre para los logs
   const [docentes, setDocentes] = useState([]);
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   
@@ -55,13 +57,14 @@ const MiExpediente = () => {
         if (user) {
           const { data: perfil } = await supabase
             .from('usuario')
-            .select('usuarioid, tipousuario')
+            .select('usuarioid, tipousuario, nombre') // <-- NUEVO: Traemos el nombre
             .eq('uid_fk', user.id)
             .single();
 
           if (perfil) {
             setUserId(perfil.usuarioid);
             setUserRole(perfil.tipousuario);
+            setUserName(perfil.nombre); // <-- NUEVO: Guardamos el nombre
 
             // Si es administrativo o director, traer lista de correos de docentes
             if (perfil.tipousuario === 'administrativo' || perfil.tipousuario === 'director') {
@@ -112,12 +115,13 @@ const MiExpediente = () => {
       if (user) {
         const { data: perfil } = await supabase
           .from('usuario')
-          .select('usuarioid, tipousuario')
+          .select('usuarioid, tipousuario, nombre') // <-- NUEVO: Traemos el nombre
           .eq('uid_fk', user.id)
           .single();
 
         if (perfil) {
           setUserId(perfil.usuarioid);
+          setUserName(perfil.nombre); // <-- NUEVO: Guardamos el nombre
           
           let query = supabase
             .from('DOCUMENTO')
@@ -184,6 +188,17 @@ const MiExpediente = () => {
     if (error) {
       alert("Error al actualizar: " + error.message);
     } else {
+      // ====== INICIO LOGICA DE LOG (UPDATE) ======
+      try {
+        let dueno = null;
+        if (docAEditar.usuarioFK !== userId) {
+          const { data: ownerData } = await supabase.from('usuario').select('nombre').eq('usuarioid', docAEditar.usuarioFK).single();
+          if (ownerData) dueno = { id: docAEditar.usuarioFK, nombre: ownerData.nombre };
+        }
+        await registrarLog(userId, userName, docAEditar.id, docAEditar.nombre || "Documento", 'UPDATE', dueno);
+      } catch (logErr) { console.error("Error al registrar log:", logErr); }
+      // ====== FIN LOGICA DE LOG ======
+
       setDocAEditar(null);
       recargar();
     }
@@ -194,11 +209,34 @@ const MiExpediente = () => {
     const confirmacion = window.confirm("¿Estás seguro de que deseas eliminar este documento?");
     if (!confirmacion) return;
 
+    // Obtenemos los datos del doc ANTES de eliminarlo para poder pasarlos al Log
+    const docAEliminar = archivos.find(a => a.id === id);
+
     const { error } = await supabase.from('DOCUMENTO').delete().eq('id', id);
 
     if (error) {
       alert("Error al eliminar: " + error.message);
     } else {
+      // ====== INICIO LOGICA DE LOG (DELETE) ======
+      if (docAEliminar) {
+        try {
+          let dueno = null;
+          if (docAEliminar.usuarioFK !== userId) {
+            const { data: ownerData } = await supabase.from('usuario').select('nombre').eq('usuarioid', docAEliminar.usuarioFK).single();
+            if (ownerData) dueno = { id: docAEliminar.usuarioFK, nombre: ownerData.nombre };
+          }
+          await registrarLog(
+            userId, 
+            userName, 
+            docAEliminar.id, 
+            docAEliminar.nombre || docAEliminar.archivo?.split('/').pop() || "Documento", 
+            'DELETE', 
+            dueno
+          );
+        } catch (logErr) { console.error("Error al registrar log:", logErr); }
+      }
+      // ====== FIN LOGICA DE LOG ======
+
       recargar();
     }
     setMenuAbiertoId(null);

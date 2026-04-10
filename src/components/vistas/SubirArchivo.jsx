@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { HiOutlineCloudUpload, HiOutlineX, HiOutlineDocumentText } from "react-icons/hi";
 import { supabase } from '../../lib/supabase';
 import { useSession } from '../../context/dataSesionUsuario';
+import { registrarLog } from '../../lib/logger';
 
 // Agregamos userRole a las propiedades que recibe el componente
 const SubirArchivo = ({ isOpen, onClose, onUploadSuccess, userRole }) => {
@@ -68,7 +69,7 @@ const SubirArchivo = ({ isOpen, onClose, onUploadSuccess, userRole }) => {
       const archivoUrl = publicUrlData.publicUrl;
 
       // 4. Guardar en BD incluyendo la Foreign Key del usuario
-      const { error: dbError } = await supabase
+      const { data: docGuardado, error: dbError } = await supabase
         .from('DOCUMENTO')
         .insert([
           { 
@@ -76,15 +77,34 @@ const SubirArchivo = ({ isOpen, onClose, onUploadSuccess, userRole }) => {
             tipo: tipo, 
             clasificacion: periodo, 
             archivo: archivoUrl, 
-            // AQUÍ ESTÁ LA MAGIA: Condicionamos el estado según el rol
             estado: (userRole === 'administrativo' || userRole === 'director') ? 'Validado' : 'Pendiente',
             fecha: new Date().toISOString(),
-            // Usamos el ID de tu tabla usuario o el UID de Auth
             usuarioFK: datosUsuario?.usuarioid || sesion.id 
           }
-        ]);
+        ])
+        .select()
+        .single();
 
       if (dbError) throw dbError;
+
+      // ====== INICIO LOGICA DE LOG (INSERT) ======
+      try {
+        if (docGuardado) {
+          const idActor = datosUsuario?.usuarioid || sesion.id;
+          const nombreActor = datosUsuario?.nombre || "Usuario";
+          
+          await registrarLog(
+            idActor, 
+            nombreActor, 
+            docGuardado.id, 
+            docGuardado.nombre || "Documento", 
+            'INSERT'
+          );
+        }
+      } catch (logErr) {
+        console.error("Error al registrar log:", logErr);
+      }
+      // ====== FIN LOGICA DE LOG ======
 
       alert("¡Archivo subido correctamente!");
       

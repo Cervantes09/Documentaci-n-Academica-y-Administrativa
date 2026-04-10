@@ -8,9 +8,11 @@ import {
   HiOutlineFolderAdd, 
   HiOutlineTrash,
   HiOutlineEye,
-  HiOutlineDownload // <-- Ícono para descargar/ver el formato
+  HiOutlineDownload 
 } from "react-icons/hi";
 import { supabase } from '../../lib/supabase';
+// IMPORTANTE: Verifica que esta ruta apunte correctamente a tu archivo logger.js
+import { registrarLog } from '../../lib/logger.js'; 
 import VistaArchivo from './VistaArchivo.jsx';
 
 const TAB_INDEX = { documentos: 0, avisos: 1, formatos: 2 };
@@ -68,7 +70,6 @@ const AdminDocs = () => {
 
   const [nombreFormato, setNombreFormato] = useState('');
   const [descripcionFormato, setDescripcionFormato] = useState('');
-  // NUEVO: Estados para el archivo adjunto
   const [archivoAdjunto, setArchivoAdjunto] = useState(null);
   const [subiendoFormato, setSubiendoFormato] = useState(false);
 
@@ -85,7 +86,7 @@ const AdminDocs = () => {
       const { data, error } = await supabase
         .from('DOCUMENTO')
         .select('*')
-        .neq('tipo', 'Formato Oficial') // Excluimos los formatos de la lista de validación
+        .neq('tipo', 'Formato Oficial') 
         .order('fecha', { ascending: false });
 
       if (error) throw error;
@@ -106,9 +107,9 @@ const AdminDocs = () => {
     try {
       setLoadingFormatos(true);
       const { data, error } = await supabase
-        .from('DOCUMENTO') // Ahora busca en tu misma tabla
+        .from('DOCUMENTO') 
         .select('*')
-        .eq('tipo', 'Formato Oficial') // Solo traemos los formatos
+        .eq('tipo', 'Formato Oficial') 
         .order('fecha', { ascending: false });
 
       if (error) throw error;
@@ -132,7 +133,12 @@ const AdminDocs = () => {
     return () => { mounted = false; };
   }, []);
 
+  // FUNCIÓN ACTUALIZADA: Implementación de LOGS para ACCEPT/DECLINE
   const cambiarEstado = async (id, nuevoEstado) => {
+    // 1. Ubicamos el documento ANTES de quitarlo del estado para tener sus datos
+    const docAfectado = documentos.find(doc => doc.id === id);
+
+    // Actualización optimista de UI
     setDocumentos(documentos.filter(doc => doc.id !== id));
 
     const { error } = await supabase
@@ -143,7 +149,64 @@ const AdminDocs = () => {
     if (error) {
       alert("Error al actualizar el estado: " + error.message);
       fetchDocumentos(); 
+      return; // Si falla, nos salimos para no registrar un log falso
     }
+
+    // ====== INICIO LOGICA DE LOG (ACCEPT / DECLINE) ======
+    if (docAfectado) {
+      try {
+        // Obtenemos la sesión actual (el Admin/Director que está ejecutando la acción)
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        let adminId = user?.id;
+        let adminName = "Administrador";
+
+        if (user) {
+          // Buscamos el nombre del Admin en la tabla usuario
+          const { data: adminData } = await supabase
+            .from('usuario')
+            .select('usuarioid, nombre')
+            .eq('uid_fk', user.id)
+            .single();
+            
+          if (adminData) {
+            adminId = adminData.usuarioid;
+            adminName = adminData.nombre;
+          }
+        }
+
+        // Obtenemos al dueño original del documento
+        let dueno = null;
+        if (docAfectado.usuarioFK) {
+          const { data: ownerData } = await supabase
+            .from('usuario')
+            .select('nombre')
+            .eq('usuarioid', docAfectado.usuarioFK)
+            .single();
+            
+          if (ownerData) {
+            dueno = { id: docAfectado.usuarioFK, nombre: ownerData.nombre };
+          }
+        }
+
+        // Traducimos el estado al tipo de operación para el LOG
+        const operacion = nuevoEstado === 'Validado' ? 'ACCEPT' : 'DECLINE';
+
+        // Registramos en el log
+        await registrarLog(
+          adminId, 
+          adminName, 
+          docAfectado.id, 
+          docAfectado.nombre || "Documento sin nombre", 
+          operacion, 
+          dueno
+        );
+
+      } catch (logErr) {
+        console.error("Error al registrar log de estado:", logErr);
+      }
+    }
+    // ====== FIN LOGICA DE LOG ======
   };
 
   const eliminarFormato = async (id) => {
@@ -152,7 +215,7 @@ const AdminDocs = () => {
 
     try {
       const { error } = await supabase
-        .from('DOCUMENTO') // Eliminamos de la tabla correcta
+        .from('DOCUMENTO') 
         .delete()
         .eq('id', id);
 
@@ -164,7 +227,6 @@ const AdminDocs = () => {
     }
   };
 
-  // FUNCIÓN ACTUALIZADA: Sube archivo a Storage y guarda info en la tabla DOCUMENTO
   const subirFormato = async (e) => {
     e.preventDefault();
     if (!nombreFormato || !archivoAdjunto) {
@@ -175,7 +237,6 @@ const AdminDocs = () => {
     try {
       setSubiendoFormato(true);
 
-      // 1. Subir archivo al Storage 'formatos'
       const fileExt = archivoAdjunto.name.split('.').pop();
       const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
 
@@ -185,32 +246,29 @@ const AdminDocs = () => {
 
       if (uploadError) throw uploadError;
 
-      // 2. Obtener URL del archivo
       const { data: publicUrlData } = supabase.storage
         .from('formatos')
         .getPublicUrl(fileName);
 
       const archivoUrl = publicUrlData.publicUrl;
 
-      // 3. Insertar en tu tabla DOCUMENTO respetando tus columnas
       const { error: dbError } = await supabase
         .from('DOCUMENTO')
         .insert([{
           nombre: nombreFormato,
-          clasificacion: descripcionFormato || "Sin descripción", // Usamos tu columna de clasificación como descripción
-          archivo: archivoUrl, // Usamos tu columna 'archivo'
+          clasificacion: descripcionFormato || "Sin descripción", 
+          archivo: archivoUrl, 
           tipo: 'Formato Oficial',
           estado: 'Aprobado',
-          fecha: new Date().toISOString() // Agregamos la fecha actual
+          fecha: new Date().toISOString() 
         }]);
 
       if (dbError) throw dbError;
 
-      // 4. Limpiar y recargar
       setNombreFormato('');
       setDescripcionFormato('');
       setArchivoAdjunto(null);
-      e.target.reset(); // Limpia el input del archivo
+      e.target.reset(); 
       fetchFormatos();
       alert("¡Formato oficial guardado exitosamente!");
 
