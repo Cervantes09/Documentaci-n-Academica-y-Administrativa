@@ -78,7 +78,7 @@ Para la administración de la Base de Datos, el enfoque se centró en la integri
 
 La app posee una lógica integral que se basa en 3 archivos principales para la renderización del contenido
 
-1. **App.jsx:** Este contiene la lógica para evaluar el tipo de usuario activo (si es docente, administrativo, director o pendiente) y en base a esto modificar el path de rutas que el archivo MenuLateral.jsx ajustará.
+1. **App.jsx:** Este contiene la lógica para evaluar el tipo de usuario activo (si es docente, administrativo, director o pendiente) y el estado de la sesión, para en base a esto modificar el path de rutas mediante los apartados dinámicos del menú lateral. Dentro de él se invocan a los componentes de Menú lateral y Layout.
 
 2. **MenuLateral.jsx**: El menú lateral es el encargado de mostrar los apartados de navegación apropiados para cada tipo de usuario, evaluando el tipo de rol extraido directo de la base de datos.
 
