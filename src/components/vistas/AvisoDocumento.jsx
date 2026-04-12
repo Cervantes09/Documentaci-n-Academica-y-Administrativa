@@ -32,10 +32,14 @@ const AvisoDocumento = ({ isOpen, onClose, documentName, status }) => {
 
         {/* Texto del aviso dinámico */}
         <p className="text-gray-600 mb-8 text-lg">
-          {isAccepted ? (
-            <>Tu documento <span className="font-semibold text-gray-900">"{documentName}"</span> ha sido aceptado.</>
-          ) : (
-            <>Tu documento <span className="font-semibold text-gray-900">"{documentName}"</span> ha sido rechazado, si tienes alguna duda comunícate con tu administrador.</>
+          {/* Imprimimos el string exacto que viene del LOG de Supabase */}
+          <span className="font-semibold text-gray-900">{documentName}</span>
+          
+          {/* Si es rechazado, agregamos el texto de ayuda en un bloque nuevo abajo */}
+          {!isAccepted && (
+            <span className="block mt-4 text-sm text-gray-500">
+              Si tienes alguna duda comunícate con tu administrador.
+            </span>
           )}
         </p>
 
