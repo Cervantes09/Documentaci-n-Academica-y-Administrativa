@@ -29,7 +29,7 @@ export const SessionProvider = ({ children }) => {
 
       if (result.data) setDatosUsuario(result.data);
     } catch (e) {
-      console.warn("Perfil no obtenido, continuando...");
+      console.log("Cargando sesion...");
     } finally {
       setCargando(false);
       cargandoPerfil.current = false;

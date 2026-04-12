@@ -5,6 +5,7 @@ import VistaArchivo from './VistaArchivo.jsx';
 import { supabase } from '../../lib/supabase';
 import AvisoDocumento from './AvisoDocumento.jsx';
 import { registrarLog } from '../../lib/logger'; // <-- NUEVO: Importamos el helper de logs
+import GestorNotificaciones from './GestorNotificaciones.jsx'; // <-- NUEVO: Importamos el gestor de notificaciones
 
 const MiExpediente = () => {
   const [busqueda, setBusqueda] = useState("");
@@ -500,6 +501,7 @@ const MiExpediente = () => {
 
       <VistaArchivo archivo={archivoParaVer} onClose={() => setArchivoParaVer(null)} />
       <AvisoDocumento isOpen={isAvisoOpen} onClose={() => setIsAvisoOpen(false)} documentName={avisoDocName} status={avisoStatus} />
+      <GestorNotificaciones />
     </div>
   );
 };
