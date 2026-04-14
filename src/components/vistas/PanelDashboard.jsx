@@ -82,18 +82,18 @@ const PanelDashboard = () => {
   // Función para descargar desde la tabla
   const forzarDescarga = async (url, nombreOriginal, id) => {
     try {
-      setDescargandoId(id); 
+      setDescargandoId(id);
       const response = await fetch(url);
       const blob = await response.blob();
       const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = blobUrl;
-      const extension = url.split('.').pop().split('?')[0]; 
+      const extension = url.split('.').pop().split('?')[0];
       link.download = `${nombreOriginal || t('dashboard.documento_default')}.${extension}`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl); 
+      window.URL.revokeObjectURL(blobUrl);
     } catch (error) {
       console.error("Error al descargar:", error);
       alert(t('dashboard.alert_error_descarga'));
@@ -181,17 +181,17 @@ const PanelDashboard = () => {
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-500">{new Date(file.fecha).toLocaleDateString()}</td>
                     <td className="px-6 py-4">
-                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full 
-                        ${file.estado === 'Validado' ? 'bg-emerald-100 text-emerald-700' : 
-                          file.estado === 'Pendiente' ? 'bg-amber-100 text-amber-700' : 
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full
+                        ${file.estado === 'Validado' ? 'bg-emerald-100 text-emerald-700' :
+                          file.estado === 'Pendiente' ? 'bg-amber-100 text-amber-700' :
                           file.estado === 'Rechazado' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
                         {file.estado || t('dashboard.estado_pendiente')}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <button 
+                      <button
                         onClick={() => forzarDescarga(file.archivo, file.nombre, file.id)}
-                        disabled={descargandoId === file.id}
+                        disabled={descargandoId === file.id || file.estado === 'Rechazado'}
                         className="text-emerald-600 hover:text-emerald-800 font-bold text-xs cursor-pointer disabled:opacity-50"
                       >
                         {descargandoId === file.id ? t('dashboard.btn_descargando') : t('dashboard.btn_descargar')}
@@ -215,9 +215,9 @@ const PanelDashboard = () => {
       </button>
 
       {/* 3. Inyectamos el componente del Modal y le pasamos las props */}
-      <SubirArchivo 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+      <SubirArchivo
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
         onUploadSuccess={recargar} // Agregamos esto para que refresque al subir
       />
 
