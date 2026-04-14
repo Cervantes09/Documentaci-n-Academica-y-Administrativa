@@ -2,8 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { HiOutlineDocumentText, HiOutlineCloudUpload, HiOutlineCheckCircle, HiOutlineClock } from "react-icons/hi";
 import SubirArchivo from './SubirArchivo.jsx'; // Tu componente del modal
 import { supabase } from '../../lib/supabase'; // Importación de Supabase
+import { useTranslation } from 'react-i18next'; // 🔥 1. Importamos el traductor
 
 const PanelDashboard = () => {
+
+  // 🔥 2. Inicializamos el traductor
+  const { t } = useTranslation();
 
   // 1. Estado para controlar si el modal está abierto o cerrado
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -85,14 +89,14 @@ const PanelDashboard = () => {
       const link = document.createElement('a');
       link.href = blobUrl;
       const extension = url.split('.').pop().split('?')[0]; 
-      link.download = `${nombreOriginal || 'Documento'}.${extension}`;
+      link.download = `${nombreOriginal || t('dashboard.documento_default')}.${extension}`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl); 
     } catch (error) {
       console.error("Error al descargar:", error);
-      alert("Hubo un problema al intentar descargar el archivo.");
+      alert(t('dashboard.alert_error_descarga'));
     } finally {
       setDescargandoId(null);
     }
@@ -110,10 +114,10 @@ const PanelDashboard = () => {
 
   // Datos dinámicos para las Cards (reemplazando los simulados)
   const stats = [
-    { label: "Total Documentos", value: totalDocs.toString(), icon: <HiOutlineDocumentText size={24}/>, color: "text-blue-600", bg: "bg-blue-100" },
-    { label: "Subidos hoy", value: subidosHoy.toString(), icon: <HiOutlineCloudUpload size={24}/>, color: "text-emerald-600", bg: "bg-emerald-100" },
-    { label: "Validados", value: validados.toString(), icon: <HiOutlineCheckCircle size={24}/>, color: "text-purple-600", bg: "bg-purple-100" },
-    { label: "Pendientes", value: pendientes.toString(), icon: <HiOutlineClock size={24}/>, color: "text-amber-600", bg: "bg-amber-100" },
+    { label: t('dashboard.stat_total'), value: totalDocs.toString(), icon: <HiOutlineDocumentText size={24}/>, color: "text-blue-600", bg: "bg-blue-100" },
+    { label: t('dashboard.stat_hoy'), value: subidosHoy.toString(), icon: <HiOutlineCloudUpload size={24}/>, color: "text-emerald-600", bg: "bg-emerald-100" },
+    { label: t('dashboard.stat_validados'), value: validados.toString(), icon: <HiOutlineCheckCircle size={24}/>, color: "text-purple-600", bg: "bg-purple-100" },
+    { label: t('dashboard.stat_pendientes'), value: pendientes.toString(), icon: <HiOutlineClock size={24}/>, color: "text-amber-600", bg: "bg-amber-100" },
   ];
 
   // Obtenemos solo los 5 más recientes para la Tabla
@@ -123,8 +127,8 @@ const PanelDashboard = () => {
     <div className="space-y-8">
       {/* Header de Bienvenida */}
       <header>
-        <h1 className="text-2xl font-bold text-slate-800">Panel de Control Académico</h1>
-        <p className="text-slate-500 text-sm">Universidad Tecnológica de Nayarit - Periodo ENE-ABR 2026</p>
+        <h1 className="text-2xl font-bold text-slate-800">{t('dashboard.titulo')}</h1>
+        <p className="text-slate-500 text-sm">{t('dashboard.subtitulo')}</p>
       </header>
 
       {/* Sección de Cards  */}
@@ -145,32 +149,32 @@ const PanelDashboard = () => {
       {/* Tabla de Archivos Recientes  */}
       <section className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex justify-between items-center">
-          <h2 className="font-bold text-slate-700">Documentos Recientes</h2>
-          <button className="text-emerald-600 text-sm font-bold hover:underline cursor-pointer">Ver todos</button>
+          <h2 className="font-bold text-slate-700">{t('dashboard.docs_recientes')}</h2>
+          <button className="text-emerald-600 text-sm font-bold hover:underline cursor-pointer">{t('dashboard.ver_todos')}</button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
               <tr>
-                <th className="px-6 py-3 font-semibold">Nombre</th>
-                <th className="px-6 py-3 font-semibold">Tipo</th>
-                <th className="px-6 py-3 font-semibold">Fecha</th>
-                <th className="px-6 py-3 font-semibold">Estatus</th>
-                <th className="px-6 py-3 font-semibold text-center">Acciones</th>
+                <th className="px-6 py-3 font-semibold">{t('dashboard.tabla_nombre')}</th>
+                <th className="px-6 py-3 font-semibold">{t('dashboard.tabla_tipo')}</th>
+                <th className="px-6 py-3 font-semibold">{t('dashboard.tabla_fecha')}</th>
+                <th className="px-6 py-3 font-semibold">{t('dashboard.tabla_estatus')}</th>
+                <th className="px-6 py-3 font-semibold text-center">{t('dashboard.tabla_acciones')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {recentFiles.length === 0 ? (
                 <tr>
                   <td colSpan="5" className="px-6 py-8 text-center text-slate-400 text-sm">
-                    No hay documentos recientes.
+                    {t('dashboard.sin_docs')}
                   </td>
                 </tr>
               ) : (
                 recentFiles.map((file) => (
                   <tr key={file.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 text-sm font-medium text-slate-700">
-                      {file.nombre || file.archivo?.split('/').pop() || "Documento"}
+                      {file.nombre || file.archivo?.split('/').pop() || t('dashboard.documento_default')}
                     </td>
                     <td className="px-6 py-4 text-xs text-slate-500">
                       <span className="px-2 py-1 bg-slate-100 rounded text-[10px] font-bold uppercase">{file.tipo}</span>
@@ -181,7 +185,7 @@ const PanelDashboard = () => {
                         ${file.estado === 'Validado' ? 'bg-emerald-100 text-emerald-700' : 
                           file.estado === 'Pendiente' ? 'bg-amber-100 text-amber-700' : 
                           file.estado === 'Rechazado' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
-                        {file.estado || 'Pendiente'}
+                        {file.estado || t('dashboard.estado_pendiente')}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -190,7 +194,7 @@ const PanelDashboard = () => {
                         disabled={descargandoId === file.id}
                         className="text-emerald-600 hover:text-emerald-800 font-bold text-xs cursor-pointer disabled:opacity-50"
                       >
-                        {descargandoId === file.id ? 'Descargando...' : 'Descargar'}
+                        {descargandoId === file.id ? t('dashboard.btn_descargando') : t('dashboard.btn_descargar')}
                       </button>
                     </td>
                   </tr>
@@ -206,7 +210,7 @@ const PanelDashboard = () => {
         onClick={() => setIsModalOpen(true)}>
         <HiOutlineCloudUpload size={28} />
         <span className="absolute right-full mr-3 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-          Subir nuevo documento
+          {t('dashboard.tooltip_subir')}
         </span>
       </button>
 

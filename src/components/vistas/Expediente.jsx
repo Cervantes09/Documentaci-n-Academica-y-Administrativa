@@ -6,8 +6,12 @@ import { supabase } from '../../lib/supabase';
 import AvisoDocumento from './AvisoDocumento.jsx';
 import { registrarLog } from '../../lib/logger'; // <-- NUEVO: Importamos el helper de logs
 import GestorNotificaciones from './GestorNotificaciones.jsx'; // <-- NUEVO: Importamos el gestor de notificaciones
+import { useTranslation } from 'react-i18next'; // 🔥 Importamos el traductor
+import Swal from 'sweetalert2'; // 🔥 Importamos SweetAlert2
 
 const MiExpediente = () => {
+  const { t } = useTranslation(); // 🔥 Inicializamos el traductor
+
   const [busqueda, setBusqueda] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [archivos, setArchivos] = useState([]);
@@ -187,7 +191,13 @@ const MiExpediente = () => {
       .eq('id', docAEditar.id);
 
     if (error) {
-      alert("Error al actualizar: " + error.message);
+      // 🔥 Implementación de SweetAlert2
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: `${t('expediente.error_actualizar')} ${error.message}`,
+        confirmButtonColor: '#059669'
+      });
     } else {
       // ====== INICIO LOGICA DE LOG (UPDATE) ======
       try {
@@ -196,7 +206,7 @@ const MiExpediente = () => {
           const { data: ownerData } = await supabase.from('usuario').select('nombre').eq('usuarioid', docAEditar.usuarioFK).single();
           if (ownerData) dueno = { id: docAEditar.usuarioFK, nombre: ownerData.nombre };
         }
-        await registrarLog(userId, userName, docAEditar.id, docAEditar.nombre || "Documento", 'UPDATE', dueno);
+        await registrarLog(userId, userName, docAEditar.id, docAEditar.nombre || t('expediente.documento_default'), 'UPDATE', dueno);
       } catch (logErr) { console.error("Error al registrar log:", logErr); }
       // ====== FIN LOGICA DE LOG ======
 
@@ -207,8 +217,18 @@ const MiExpediente = () => {
   };
 
   const eliminarArchivo = async (id) => {
-    const confirmacion = window.confirm("¿Estás seguro de que deseas eliminar este documento?");
-    if (!confirmacion) return;
+    // 🔥 Implementación de SweetAlert2 con botón de confirmación
+    const result = await Swal.fire({
+      icon: 'warning',
+      text: t('expediente.confirm_eliminar'),
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#94a3b8',
+      confirmButtonText: 'Eliminar',
+      cancelButtonText: 'Cancelar'
+    });
+
+    if (!result.isConfirmed) return;
 
     // Obtenemos los datos del doc ANTES de eliminarlo para poder pasarlos al Log
     const docAEliminar = archivos.find(a => a.id === id);
@@ -216,7 +236,13 @@ const MiExpediente = () => {
     const { error } = await supabase.from('DOCUMENTO').delete().eq('id', id);
 
     if (error) {
-      alert("Error al eliminar: " + error.message);
+      // 🔥 Implementación de SweetAlert2
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: `${t('expediente.error_eliminar')} ${error.message}`,
+        confirmButtonColor: '#059669'
+      });
     } else {
       // ====== INICIO LOGICA DE LOG (DELETE) ======
       if (docAEliminar) {
@@ -230,7 +256,7 @@ const MiExpediente = () => {
             userId, 
             userName, 
             docAEliminar.id, 
-            docAEliminar.nombre || docAEliminar.archivo?.split('/').pop() || "Documento", 
+            docAEliminar.nombre || docAEliminar.archivo?.split('/').pop() || t('expediente.documento_default'), 
             'DELETE', 
             dueno
           );
@@ -252,14 +278,20 @@ const MiExpediente = () => {
       const link = document.createElement('a');
       link.href = blobUrl;
       const extension = url.split('.').pop().split('?')[0]; 
-      link.download = `${nombreOriginal || 'Documento'}.${extension}`;
+      link.download = `${nombreOriginal || t('expediente.documento_default')}.${extension}`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl); 
     } catch (error) {
       console.error("Error al descargar:", error);
-      alert("Hubo un problema al intentar descargar el archivo.");
+      // 🔥 Implementación de SweetAlert2
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: t('expediente.error_descarga'),
+        confirmButtonColor: '#059669'
+      });
     } finally {
       setDescargandoId(null);
     }
@@ -269,8 +301,8 @@ const MiExpediente = () => {
     <div className="space-y-6 relative">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Expediente</h1>
-          <p className="text-slate-500 text-sm">Gestiona y organiza tus documentos académicos oficiales.</p>
+          <h1 className="text-2xl font-bold text-slate-800">{t('expediente.titulo')}</h1>
+          <p className="text-slate-500 text-sm">{t('expediente.subtitulo')}</p>
         </div>
         
         <button 
@@ -278,7 +310,7 @@ const MiExpediente = () => {
           className="flex items-center cursor-pointer justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold transition-all shadow-md active:scale-95"
         >
           <HiOutlinePlus size={20} />
-          <span>Subir Archivo</span>
+          <span>{t('expediente.btn_subir')}</span>
         </button>
       </div>
 
@@ -287,7 +319,7 @@ const MiExpediente = () => {
           <HiOutlineSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
           <input 
             type="text" 
-            placeholder="Buscar por nombre de documento..." 
+            placeholder={t('expediente.buscar_placeholder')} 
             className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white shadow-sm"
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
@@ -307,7 +339,7 @@ const MiExpediente = () => {
             >
               <HiOutlineFilter size={20} />
               <span className="hidden sm:inline">
-                {modoVista === 'propios' ? "Mis Archivos" : (filtroDocente === "" ? "Docs. Docentes" : "Filtrado")}
+                {modoVista === 'propios' ? t('expediente.mis_archivos') : (filtroDocente === "" ? t('expediente.docs_docentes') : t('expediente.filtrado'))}
               </span>
             </button>
 
@@ -317,19 +349,19 @@ const MiExpediente = () => {
                 
                 {/* Los "Checkboxes" convertidos a botones toggle */}
                 <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
-                  <p className="text-xs font-bold text-slate-500 uppercase mb-2">Mostrar:</p>
+                  <p className="text-xs font-bold text-slate-500 uppercase mb-2">{t('expediente.mostrar')}</p>
                   <div className="flex gap-2">
                     <button 
                       onClick={() => setModoVista('propios')}
                       className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${modoVista === 'propios' ? 'bg-emerald-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                     >
-                      Mis Archivos
+                      {t('expediente.btn_mis_archivos')}
                     </button>
                     <button 
                       onClick={() => { setModoVista('docentes'); setFiltroDocente(""); }}
                       className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${modoVista === 'docentes' ? 'bg-emerald-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                     >
-                      De Docentes
+                      {t('expediente.btn_de_docentes')}
                     </button>
                   </div>
                 </div>
@@ -338,7 +370,7 @@ const MiExpediente = () => {
                 {modoVista === 'docentes' && (
                   <>
                     <div className="px-3 py-2 border-b border-slate-100 bg-slate-50 mb-1">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase">Seleccionar Docente Específico</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">{t('expediente.seleccionar_docente')}</p>
                     </div>
                     
                     <div className="max-h-56 overflow-y-auto">
@@ -346,7 +378,7 @@ const MiExpediente = () => {
                         onClick={() => { setFiltroDocente(""); setIsFilterMenuOpen(false); }}
                         className={`w-full text-left cursor-pointer px-4 py-2 text-sm transition-colors ${filtroDocente === "" ? 'bg-emerald-50 text-emerald-700 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}
                       >
-                        ✅ Todos los Docentes
+                        {t('expediente.todos_docentes')}
                       </button>
                       {docentes.map(docente => (
                         <button 
@@ -367,11 +399,11 @@ const MiExpediente = () => {
         )}
       </div>
 
-      {loading && <p className="text-emerald-600 font-bold animate-pulse text-center py-10">Cargando tu expediente...</p>}
+      {loading && <p className="text-emerald-600 font-bold animate-pulse text-center py-10">{t('expediente.cargando')}</p>}
       {!loading && archivosFiltrados.length === 0 && (
         <div className="text-center py-10 text-slate-400 flex flex-col items-center">
-          <p>No se encontraron documentos.</p>
-          {modoVista === 'docentes' && <span className="text-xs mt-1 text-slate-300">(Prueba seleccionando "Mis Archivos" u otro docente)</span>}
+          <p>{t('expediente.sin_documentos')}</p>
+          {modoVista === 'docentes' && <span className="text-xs mt-1 text-slate-300">{t('expediente.prueba_filtros')}</span>}
         </div>
       )}
 
@@ -387,7 +419,7 @@ const MiExpediente = () => {
                 <button 
                   onClick={() => setMenuAbiertoId(menuAbiertoId === archivo.id ? null : archivo.id)}
                   className="text-slate-400 hover:text-emerald-600 hover:bg-slate-50 p-1.5 rounded-lg transition-colors"
-                  title="Opciones"
+                  title={t('expediente.opciones')}
                 >
                   <HiOutlineDotsVertical size={20} />
                 </button>
@@ -398,13 +430,13 @@ const MiExpediente = () => {
                       onClick={() => { setDocAEditar(archivo); setMenuAbiertoId(null); }}
                       className="w-full text-left cursor-pointer px-4 py-2 text-xs font-bold text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
                     >
-                      Editar
+                      {t('expediente.editar')}
                     </button>
                     <button 
                       onClick={() => eliminarArchivo(archivo.id)}
                       className="w-full text-left cursor-pointer px-4 py-2 text-xs font-bold text-red-500 hover:bg-red-50 transition-colors"
                     >
-                      Eliminar
+                      {t('expediente.eliminar')}
                     </button>
                   </div>
                 )}
@@ -412,7 +444,7 @@ const MiExpediente = () => {
             </div>
             
             <h3 className="font-bold text-slate-700 text-sm truncate mb-1" title={archivo.nombre || archivo.archivo}>
-              {archivo.nombre || archivo.archivo?.split('/').pop() || "Documento"} 
+              {archivo.nombre || archivo.archivo?.split('/').pop() || t('expediente.documento_default')} 
             </h3>
             
             <p className="text-[10px] text-emerald-600 font-bold uppercase mb-3">
@@ -424,7 +456,7 @@ const MiExpediente = () => {
               <span 
                 onClick={() => {
                   if(archivo.estado === 'Validado' || archivo.estado === 'Rechazado') {
-                    abrirAviso(archivo.nombre || archivo.archivo?.split('/').pop() || "Documento", archivo.estado);
+                    abrirAviso(archivo.nombre || archivo.archivo?.split('/').pop() || t('expediente.documento_default'), archivo.estado);
                   }
                 }}
                 className={`px-2 py-0.5 rounded-full ${
@@ -443,14 +475,14 @@ const MiExpediente = () => {
                 onClick={() => setArchivoParaVer(archivo)}
                 className="flex-1 text-[11px] font-bold py-1.5 bg-emerald-600 text-white rounded hover:bg-emerald-700 text-center"
               >
-                Ver
+                {t('expediente.ver')}
               </button>
               <button 
                 onClick={() => forzarDescarga(archivo.archivo, archivo.nombre, archivo.id)}
                 disabled={descargandoId === archivo.id}
                 className="flex-1 text-[11px] font-bold py-1.5 border border-slate-200 text-slate-600 rounded hover:bg-slate-50 text-center disabled:opacity-50"
               >
-                {descargandoId === archivo.id ? 'Descargando...' : 'Descargar'}
+                {descargandoId === archivo.id ? t('expediente.descargando') : t('expediente.descargar')}
               </button>
             </div>
           </div>
@@ -469,29 +501,29 @@ const MiExpediente = () => {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden relative border border-slate-100">
             <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h2 className="font-bold text-slate-800">Editar Documento</h2>
+              <h2 className="font-bold text-slate-800">{t('expediente.editar_doc')}</h2>
               <button onClick={() => setDocAEditar(null)} className="text-slate-400 hover:text-red-500"><HiOutlineX size={20}/></button>
             </div>
             <form onSubmit={guardarEdicion} className="p-5 space-y-4">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-600">Nombre:</label>
+                <label className="text-xs font-bold text-slate-600">{t('expediente.label_nombre')}</label>
                 <input type="text" value={docAEditar.nombre || ""} onChange={(e) => setDocAEditar({...docAEditar, nombre: e.target.value})} className="w-full p-2 border border-slate-200 rounded text-sm focus:ring-1 focus:ring-emerald-500 outline-none" required />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-600">Tipo:</label>
+                <label className="text-xs font-bold text-slate-600">{t('expediente.label_tipo')}</label>
                 <select value={docAEditar.tipo || ""} onChange={(e) => setDocAEditar({...docAEditar, tipo: e.target.value})} className="w-full p-2 border border-slate-200 rounded text-sm outline-none">
                   {["Planeación Docente", "Lista de Asistencia", "Acta de Academia", "Reporte Final"].map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-600">Periodo:</label>
+                <label className="text-xs font-bold text-slate-600">{t('expediente.label_periodo')}</label>
                 <select value={docAEditar.clasificacion || ""} onChange={(e) => setDocAEditar({...docAEditar, clasificacion: e.target.value})} className="w-full p-2 border border-slate-200 rounded text-sm outline-none">
                   {["ENE-ABR 2026", "MAY-AGO 2026", "SEP-DIC 2026"].map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
               <div className="pt-3">
                 <button type="submit" disabled={guardandoEdicion} className="w-full py-2 bg-emerald-600 text-white font-bold rounded-lg text-sm hover:bg-emerald-700 disabled:opacity-50">
-                  {guardandoEdicion ? "Guardando..." : "Guardar Cambios"}
+                  {guardandoEdicion ? t('expediente.guardando_cambios') : t('expediente.guardar_cambios')}
                 </button>
               </div>
             </form>

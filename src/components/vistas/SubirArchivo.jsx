@@ -3,9 +3,14 @@ import { HiOutlineCloudUpload, HiOutlineX, HiOutlineDocumentText } from "react-i
 import { supabase } from '../../lib/supabase';
 import { useSession } from '../../context/dataSesionUsuario';
 import { registrarLog } from '../../lib/logger';
+import { useTranslation } from 'react-i18next'; // 🔥 1. Importamos el traductor
+import Swal from 'sweetalert2'; // Importamos SweetAlert2
 
 // Agregamos userRole a las propiedades que recibe el componente
 const SubirArchivo = ({ isOpen, onClose, onUploadSuccess, userRole }) => {
+  // 🔥 2. Inicializamos el traductor
+  const { t } = useTranslation();
+
   // Obtenemos los datos del usuario logueado del contexto
   const { sesion, datosUsuario } = useSession();
 
@@ -31,18 +36,31 @@ const SubirArchivo = ({ isOpen, onClose, onUploadSuccess, userRole }) => {
     e.preventDefault();
     
     if (!archivo) {
-      alert("Por favor selecciona un archivo.");
+      Swal.fire({
+        icon: 'warning',
+        text: t('subir_archivo.alert_sin_archivo'),
+        confirmButtonColor: '#059669'
+      });
       return;
     }
 
     if (!nombre.trim()) {
-      alert("Por favor ponle un nombre al documento.");
+      Swal.fire({
+        icon: 'warning',
+        text: t('subir_archivo.alert_sin_nombre'),
+        confirmButtonColor: '#059669'
+      });
       return;
     }
 
     // Seguridad: Verificar que tengamos al usuario antes de intentar subir
     if (!sesion) {
-      alert("No se detectó una sesión activa. Por favor, reingresa al sistema.");
+      Swal.fire({
+        icon: 'error',
+        title: 'Oops...',
+        text: t('subir_archivo.alert_sin_sesion'),
+        confirmButtonColor: '#059669'
+      });
       return;
     }
 
@@ -106,7 +124,11 @@ const SubirArchivo = ({ isOpen, onClose, onUploadSuccess, userRole }) => {
       }
       // ====== FIN LOGICA DE LOG ======
 
-      alert("¡Archivo subido correctamente!");
+      Swal.fire({
+        icon: 'success',
+        text: t('subir_archivo.alert_exito'),
+        confirmButtonColor: '#059669'
+      });
       
       setArchivo(null);
       setNombre("");
@@ -118,7 +140,12 @@ const SubirArchivo = ({ isOpen, onClose, onUploadSuccess, userRole }) => {
 
     } catch (error) {
       console.error("Error completo:", error);
-      alert("Hubo un error al subir: " + error.message);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: t('subir_archivo.alert_error') + error.message,
+        confirmButtonColor: '#059669'
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -147,19 +174,19 @@ const SubirArchivo = ({ isOpen, onClose, onUploadSuccess, userRole }) => {
         <div className="p-6 border-b border-slate-100 bg-slate-50">
           <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
             <HiOutlineCloudUpload className="text-emerald-600" size={24}/>
-            Subir Nuevo Documento
+            {t('subir_archivo.titulo')}
           </h2>
         </div>
 
         <form onSubmit={handleFormulario} className="p-6 space-y-4">
           
           <div className="space-y-1.5">
-            <label className="text-sm font-semibold text-slate-600">Nombre del Documento:</label>
+            <label className="text-sm font-semibold text-slate-600">{t('subir_archivo.label_nombre')}</label>
             <input 
               type="text"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
-              placeholder="Ej: Planeación IDGS81"
+              placeholder={t('subir_archivo.placeholder_nombre')}
               required
               disabled={isSubmitting}
               className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:bg-slate-100"
@@ -168,7 +195,7 @@ const SubirArchivo = ({ isOpen, onClose, onUploadSuccess, userRole }) => {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-slate-600">Periodo:</label>
+              <label className="text-sm font-semibold text-slate-600">{t('subir_archivo.label_periodo')}</label>
               <select 
                 value={periodo} 
                 onChange={(e) => setPeriodo(e.target.value)} 
@@ -176,13 +203,13 @@ const SubirArchivo = ({ isOpen, onClose, onUploadSuccess, userRole }) => {
                 disabled={isSubmitting}
                 className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:bg-slate-100"
               >
-                <option value="" disabled>Seleccionar...</option>
+                <option value="" disabled>{t('subir_archivo.opcion_seleccionar')}</option>
                 {periodos.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-slate-600">Tipo:</label>
+              <label className="text-sm font-semibold text-slate-600">{t('subir_archivo.label_tipo')}</label>
               <select 
                 value={tipo} 
                 onChange={(e) => setTipo(e.target.value)} 
@@ -190,14 +217,14 @@ const SubirArchivo = ({ isOpen, onClose, onUploadSuccess, userRole }) => {
                 disabled={isSubmitting}
                 className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:bg-slate-100"
               >
-                <option value="" disabled>Seleccionar...</option>
+                <option value="" disabled>{t('subir_archivo.opcion_seleccionar')}</option>
                 {tiposDocumentos.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
           </div>
 
           <div className="space-y-1.5 pt-2">
-            <label className="text-sm font-semibold text-slate-600">Archivo (PDF/Word):</label>
+            <label className="text-sm font-semibold text-slate-600">{t('subir_archivo.label_archivo')}</label>
             <div className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${archivo ? 'border-emerald-300 bg-emerald-50' : 'border-slate-300 hover:border-emerald-500 hover:bg-slate-50'} ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}>
               <input 
                 type="file" 
@@ -217,7 +244,7 @@ const SubirArchivo = ({ isOpen, onClose, onUploadSuccess, userRole }) => {
                 ) : (
                   <>
                     <HiOutlineCloudUpload size={32} className="text-slate-400" />
-                    <p className="text-sm font-medium text-slate-600">Click para seleccionar archivo</p>
+                    <p className="text-sm font-medium text-slate-600">{t('subir_archivo.click_seleccionar')}</p>
                   </>
                 )}
               </label>
@@ -225,8 +252,8 @@ const SubirArchivo = ({ isOpen, onClose, onUploadSuccess, userRole }) => {
           </div>
 
           <div className="flex gap-3 justify-end pt-4 border-t border-slate-100">
-            <button type="button" onClick={cerrarModal} disabled={isSubmitting} className="px-5 py-2.5 text-sm font-bold text-slate-600 rounded-lg border hover:bg-slate-50 transition-all">Cancelar</button>
-            <button type="submit" disabled={isSubmitting} className="px-5 py-2.5 text-sm font-bold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-all shadow-md">{isSubmitting ? 'Subiendo...' : 'Subir Archivo'}</button>
+            <button type="button" onClick={cerrarModal} disabled={isSubmitting} className="px-5 py-2.5 text-sm font-bold text-slate-600 rounded-lg border hover:bg-slate-50 transition-all">{t('subir_archivo.btn_cancelar')}</button>
+            <button type="submit" disabled={isSubmitting} className="px-5 py-2.5 text-sm font-bold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-all shadow-md">{isSubmitting ? t('subir_archivo.btn_subiendo') : t('subir_archivo.btn_subir')}</button>
           </div>
         </form>
       </div>

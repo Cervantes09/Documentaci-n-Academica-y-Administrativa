@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { HiOutlineSpeakerphone, HiOutlineFolder, HiOutlineClock, HiOutlineUserGroup, HiOutlineExternalLink } from "react-icons/hi";
 import { supabase } from '../../lib/supabase'; // Asegúrate de que esta ruta sea la correcta
+import { useTranslation } from 'react-i18next'; // 🔥 1. Importamos el traductor
 
 const Academia = () => {
+  // 🔥 2. Inicializamos el traductor
+  const { t } = useTranslation();
+
   // 1. ESTADOS PARA SUPABASE
   const [noticias, setNoticias] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -45,10 +49,10 @@ const Academia = () => {
 
   // Datos fijos para las Carpetas Compartidas (Esto lo dejamos igual por ahora)
   const carpetas = [
-    { id: 1, nombre: "Actas de Academia 2026", archivos: 12, color: "text-amber-500" },
-    { id: 2, nombre: "Material Didáctico Común", archivos: 45, color: "text-emerald-500" },
-    { id: 3, nombre: "Proyectos Integradores", archivos: 8, color: "text-indigo-500" },
-    { id: 4, nombre: "Evidencias de Auditoría", archivos: 24, color: "text-rose-500" },
+    { id: 1, nombre: t('academia.carpeta_actas'), archivos: 12, color: "text-amber-500" },
+    { id: 2, nombre: t('academia.carpeta_material'), archivos: 45, color: "text-emerald-500" },
+    { id: 3, nombre: t('academia.carpeta_proyectos'), archivos: 8, color: "text-indigo-500" },
+    { id: 4, nombre: t('academia.carpeta_evidencias'), archivos: 24, color: "text-rose-500" },
   ];
 
   return (
@@ -58,17 +62,17 @@ const Academia = () => {
       <section className="space-y-4">
         <div className="flex items-center gap-2">
           <HiOutlineSpeakerphone className="text-emerald-600" size={24} />
-          <h2 className="text-xl font-bold text-slate-800">Avisos de Academia</h2>
+          <h2 className="text-xl font-bold text-slate-800">{t('academia.avisos_titulo')}</h2>
         </div>
 
         <div className="grid gap-4">
           {cargando ? (
             <div className="py-8 text-center text-slate-500 animate-pulse font-medium">
-              Cargando avisos recientes...
+              {t('academia.cargando')}
             </div>
           ) : noticias.length === 0 ? (
             <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500 shadow-sm">
-              No hay avisos nuevos en la Academia.
+              {t('academia.sin_avisos')}
             </div>
           ) : (
             noticias.map((post) => (
@@ -80,12 +84,13 @@ const Academia = () => {
                     </div>
                     <div>
                       {/* Como no guardamos un autor, le ponemos un texto genérico oficial */}
-                      <h3 className="text-sm font-bold text-slate-700">Coordinación Académica</h3>
+                      <h3 className="text-sm font-bold text-slate-700">{t('academia.coordinacion')}</h3>
                       <p className="text-[11px] text-slate-400 flex items-center gap-1">
-                        <HiOutlineClock size={12} /> Publicado: {new Date(post.created_at).toLocaleDateString()}
+                        <HiOutlineClock size={12} /> {t('academia.publicado')}: {new Date(post.created_at).toLocaleDateString()}
                       </p>
                     </div>
                   </div>
+                  {/* Se mantiene el tipo sin traducir por ahora si viene directo de BD, a menos que quieras mapearlo luego */}
                   <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${obtenerEstiloPorTipo(post.tipo)}`}>
                     {post.tipo}
                   </span>
@@ -93,7 +98,7 @@ const Academia = () => {
                 <h4 className="text-base font-bold text-slate-800 mb-2">{post.titulo}</h4>
                 <p className="text-sm text-slate-600 leading-relaxed mb-3">{post.contenido}</p>
                 <div className="bg-slate-50 p-2 rounded-lg inline-block">
-                  <p className="text-xs font-bold text-slate-500">📅 Fecha Programada: <span className="text-slate-700">{post.fecha_programada}</span></p>
+                  <p className="text-xs font-bold text-slate-500">📅 {t('academia.fecha_programada')}: <span className="text-slate-700">{post.fecha_programada}</span></p>
                 </div>
               </div>
             ))
@@ -106,9 +111,9 @@ const Academia = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <HiOutlineFolder className="text-emerald-600" size={24} />
-            <h2 className="text-xl font-bold text-slate-800">Recursos Compartidos</h2>
+            <h2 className="text-xl font-bold text-slate-800">{t('academia.recursos_titulo')}</h2>
           </div>
-          <button className="text-xs font-bold text-emerald-600 hover:underline">Ver todo</button>
+          <button className="text-xs font-bold text-emerald-600 hover:underline">{t('academia.ver_todo')}</button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -121,7 +126,7 @@ const Academia = () => {
                 {folder.nombre}
               </h3>
               <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
-                <span>{folder.archivos} elementos</span>
+                <span>{folder.archivos} {t('academia.elementos')}</span>
                 <HiOutlineExternalLink size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
             </div>
@@ -132,11 +137,11 @@ const Academia = () => {
       {/* Banner Informativo */}
       <div className="bg-[#003d2b] rounded-2xl p-6 text-white flex flex-col md:flex-row items-center justify-between gap-4">
         <div>
-          <h3 className="font-bold text-lg text-emerald-400">¿Necesitas compartir algo?</h3>
-          <p className="text-emerald-100/70 text-sm">Envía tus documentos a coordinación para publicarlos en las carpetas comunes.</p>
+          <h3 className="font-bold text-lg text-emerald-400">{t('academia.banner_titulo')}</h3>
+          <p className="text-emerald-100/70 text-sm">{t('academia.banner_desc')}</p>
         </div>
         <button className="bg-emerald-500 hover:bg-emerald-400 text-[#003d2b] px-6 py-2 rounded-xl font-black text-sm transition-all whitespace-nowrap">
-          SOLICITAR ACCESO
+          {t('academia.solicitar_acceso')}
         </button>
       </div>
 

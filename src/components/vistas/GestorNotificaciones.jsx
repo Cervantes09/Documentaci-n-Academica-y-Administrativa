@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import AvisoDocumento from './AvisoDocumento';
+import { useTranslation } from 'react-i18next'; // 🔥 1. Importamos el traductor
 
 const GestorNotificaciones = () => {
+  // 🔥 2. Inicializamos el traductor
+  const { t } = useTranslation();
+
   const [notificaciones, setNotificaciones] = useState([]);
   const [indiceActual, setIndiceActual] = useState(0);
 
@@ -91,7 +95,7 @@ const GestorNotificaciones = () => {
   const statusAviso = notificacionActual.operacion === 'ACCEPT' ? 'accepted' : 'rejected';
   
   // Usar el campo 'asunto' del LOG para el nombre del documento
-  const nombreDoc = notificacionActual.asunto || "Documento";
+  const nombreDoc = notificacionActual.asunto || t('gestor.documento_default');
 
   return (
     <AvisoDocumento 

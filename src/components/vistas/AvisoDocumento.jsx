@@ -1,6 +1,10 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next'; // 🔥 Importamos el traductor
 
 const AvisoDocumento = ({ isOpen, onClose, documentName, status }) => {
+  // 🔥 Inicializamos el traductor
+  const { t } = useTranslation();
+
   // Si isOpen es false, no renderizamos nada (el modal se oculta)
   if (!isOpen) return null;
 
@@ -27,7 +31,7 @@ const AvisoDocumento = ({ isOpen, onClose, documentName, status }) => {
 
         {/* Título */}
         <h3 className="text-2xl font-bold text-gray-800 mb-2">
-          {isAccepted ? '¡Documento Aceptado!' : 'Documento Rechazado'}
+          {isAccepted ? t('avisoDocumento.aceptado_titulo') : t('avisoDocumento.rechazado_titulo')}
         </h3>
 
         {/* Texto del aviso dinámico */}
@@ -38,7 +42,7 @@ const AvisoDocumento = ({ isOpen, onClose, documentName, status }) => {
           {/* Si es rechazado, agregamos el texto de ayuda en un bloque nuevo abajo */}
           {!isAccepted && (
             <span className="block mt-4 text-sm text-gray-500">
-              Si tienes alguna duda comunícate con tu administrador.
+              {t('avisoDocumento.duda_admin')}
             </span>
           )}
         </p>
@@ -52,7 +56,7 @@ const AvisoDocumento = ({ isOpen, onClose, documentName, status }) => {
               : 'bg-red-600 hover:bg-red-700 focus:ring-red-500 shadow-red-500/30 shadow-lg'
           }`}
         >
-          Siguiente
+          {t('avisoDocumento.siguiente')}
         </button>
       </div>
     </div>

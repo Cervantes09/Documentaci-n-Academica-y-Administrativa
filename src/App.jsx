@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useSession } from './context/dataSesionUsuario';
+import './i18n';
 
 // Importación de Componentes y Vistas
 import Layout from './components/Layout';

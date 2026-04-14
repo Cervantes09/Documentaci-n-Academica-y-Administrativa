@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import logo from '../assets/logo.png';
 import { useSession } from '../context/dataSesionUsuario';
+import { useTranslation } from 'react-i18next'; // 🔥 1. Importamos el traductor
 
 // Icons con clases responsivas
 import { MdMenuOpen, MdOutlineManageAccounts, MdOutlineMoveToInbox } from "react-icons/md";
@@ -14,44 +15,44 @@ const MenuLateral = () => {
   const [open, setOpen] = useState(true);
   const { datosUsuario, sesion, cerrarSesion } = useSession();
   const rol = datosUsuario?.tipousuario;
+  
+  // 🔥 2. Inicializamos el controlador de idioma
+  const { t, i18n } = useTranslation();
+
+  // 🔥 3. Función para alternar el idioma
+  const cambiarIdioma = () => {
+    const nuevoIdioma = i18n.language === 'es' ? 'en' : 'es';
+    i18n.changeLanguage(nuevoIdioma);
+  };
 
   const allItems = [
-
     // VISTAS EXCLUSIVAS
-
     // EXCLUSIVO DOCENTE
-    { icons: <IoHomeOutline className="w-5 h-5 sm:w-6 sm:h-6" />, label: 'Inicio', path: '/', roles: ['docente'] },
-    
+    { icons: <IoHomeOutline className="w-5 h-5 sm:w-6 sm:h-6" />, label: t('menu.inicio'), path: '/', roles: ['docente'] },
     // EXCLUSIVO Director (Usuarios)
-    { icons: <MdOutlineManageAccounts className="w-5 h-5 sm:w-6 sm:h-6" />, label: 'Usuarios y Backups', path: '/', roles: ['director'] },
-    
+    { icons: <MdOutlineManageAccounts className="w-5 h-5 sm:w-6 sm:h-6" />, label: t('menu.usuarios'), path: '/', roles: ['director'] },
     // Gestión Docs (Ahora Administrativo y Director)
-    { icons: <MdOutlineMoveToInbox className="w-5 h-5 sm:w-6 sm:h-6" />, label: 'Administración', path: '/gestion-documentos', roles: ['administrativo', 'director'] },
+    { icons: <MdOutlineMoveToInbox className="w-5 h-5 sm:w-6 sm:h-6" />, label: t('menu.administracion'), path: '/gestion-documentos', roles: ['administrativo', 'director'] },
 
     { type: 'divider', roles: ['docente', 'director', 'administrativo'] }, 
 
     //VISTAS GENERICAS
-
     // Academia (Todos)
-    { icons: <LuSchool className="w-5 h-5 sm:w-6 sm:h-6" />, label: 'Academia', path: rol === 'docente' ? '/academia' : '/academia', roles: ['administrativo', 'director', 'docente'] },
-    
+    { icons: <LuSchool className="w-5 h-5 sm:w-6 sm:h-6" />, label: t('menu.academia'), path: rol === 'docente' ? '/academia' : '/academia', roles: ['administrativo', 'director', 'docente'] },
     // Mi Expediente (Docente y Director)
-    { icons: <IoLogoBuffer className="w-5 h-5 sm:w-6 sm:h-6" />, label: 'Expediente', path: '/expediente', roles: ['administrativo', 'director', 'docente'] },
-
-
+    { icons: <IoLogoBuffer className="w-5 h-5 sm:w-6 sm:h-6" />, label: t('menu.expediente'), path: '/expediente', roles: ['administrativo', 'director', 'docente'] },
     // Formatos UT (Todos)
-    { icons: <IoSchoolSharp className="w-5 h-5 sm:w-6 sm:h-6" />, label: 'Formatos UT', path: '/formatos', roles: ['docente', 'administrativo', 'director'] },
+    { icons: <IoSchoolSharp className="w-5 h-5 sm:w-6 sm:h-6" />, label: t('menu.formatos'), path: '/formatos', roles: ['docente', 'administrativo', 'director'] },
     
     { type: 'divider', roles: ['docente', 'director', 'administrativo'] },
     
     // Configuración (Todos)
-    { icons: <CiSettings className="w-5 h-5 sm:w-6 sm:h-6" />, label: 'Configuración', path: '/configuracion', roles: ['docente', 'director', 'administrativo'] },
+    { icons: <CiSettings className="w-5 h-5 sm:w-6 sm:h-6" />, label: t('menu.configuracion'), path: '/configuracion', roles: ['docente', 'director', 'administrativo'] },
   ];
 
   const menuItems = allItems.filter(item => item.roles?.includes(rol));
 
   return (
-    // 🛠️ FIX: overflow-hidden general para evitar cualquier scroll accidental
     <nav className={`shadow-2xl h-screen flex flex-col duration-500 bg-emerald-950 text-white sticky top-0 z-50 overflow-hidden ${open ? 'w-64 p-2 sm:p-3' : 'w-20 p-2'}`}>
 
       {/* Header */}
@@ -69,7 +70,6 @@ const MenuLateral = () => {
       </div>
 
       {/* Body - Navegación */}
-      {/* 🛠️ FIX: overflow-x-hidden aquí es vital para el scroll que viste */}
       <ul className='flex-1 mt-3 space-y-1 overflow-y-auto overflow-x-hidden custom-scrollbar px-1'>
         {menuItems.map((item, index) => {
           if (item.type === 'divider') {
@@ -103,9 +103,7 @@ const MenuLateral = () => {
       </ul>
 
       {/* Footer - Perfil y Logout */}
-      {/* 🛠️ FIX: Eliminamos px dinámicos que causaban ruido visual y pusimos overflow-hidden */}
       <div className='pt-3 border-t border-emerald-900/50 mb-4 flex-shrink-0 overflow-hidden'>
-        
         <div className="flex flex-col gap-3">
           
           {/* Fila del Perfil */}
@@ -125,18 +123,34 @@ const MenuLateral = () => {
             </div>
           </div>
 
+          {/* Fila de CAMBIO DE IDIOMA - Animada */}
+          <div className={`px-2 duration-500 transition-all ${!open ? 'h-0 opacity-0 pointer-events-none translate-y-4' : 'h-10 opacity-100 translate-y-0'}`}>
+            <button 
+              onClick={cambiarIdioma}
+              className="group flex w-full items-center justify-center gap-2.5 p-2 rounded-xl bg-emerald-900/30 text-emerald-300 hover:bg-blue-500/20 hover:text-blue-300 transition-all duration-300 cursor-pointer border border-transparent hover:border-blue-500/30"
+            >
+              <span className="text-base flex-shrink-0">
+                {i18n.language === 'es' ? '' : ''}
+              </span>
+              <span className={`text-[10px] font-bold uppercase tracking-wider whitespace-nowrap duration-500 ${!open ? 'w-0 opacity-0' : 'w-auto'}`}>
+                {i18n.language === 'es' ? 'Cambiar a Ingles' : 'Switch to Spanish'}
+              </span>
+            </button>
+          </div>
+
           {/* Fila de Logout - Animada */}
           <div className={`px-2 duration-500 transition-all ${!open ? 'h-0 opacity-0 pointer-events-none translate-y-4' : 'h-10 opacity-100 translate-y-0'}`}>
             <button 
-              onClick={cerrarSesion} // 🔥 Ahora sí la va a encontrar
+              onClick={cerrarSesion}
               className="group flex w-full items-center justify-center gap-2.5 p-2 rounded-xl bg-emerald-900/30 text-emerald-300 hover:bg-rose-500/10 hover:text-rose-400 transition-all duration-300 cursor-pointer border border-transparent hover:border-rose-500/20"
-              >
-            <IoLogOutOutline className="w-5 h-5 flex-shrink-0" />
-            <span className={`text-[10px] font-bold uppercase tracking-wider whitespace-nowrap duration-500 ${!open ? 'w-0 opacity-0' : 'w-auto'}`}>
-              Salir del Sistema
-            </span>
+            >
+              <IoLogOutOutline className="w-5 h-5 flex-shrink-0" />
+              <span className={`text-[10px] font-bold uppercase tracking-wider whitespace-nowrap duration-500 ${!open ? 'w-0 opacity-0' : 'w-auto'}`}>
+                {t('menu.salir')}
+              </span>
             </button>
           </div>
+
         </div>
       </div>
     </nav>
