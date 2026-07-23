@@ -3,6 +3,8 @@ import { HiOutlineDocumentText, HiOutlineCloudUpload, HiOutlineCheckCircle, HiOu
 import SubirArchivo from './SubirArchivo.jsx'; // Tu componente del modal
 import { supabase } from '../../lib/supabase'; // Importación de Supabase
 import { useTranslation } from 'react-i18next'; // 🔥 1. Importamos el traductor
+// 🔥 NUEVO: Importamos componentes de Recharts para la gráfica de distribución (tipo Pie/Donut diferente al anterior)
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const PanelDashboard = () => {
 
@@ -123,6 +125,14 @@ const PanelDashboard = () => {
   // Obtenemos solo los 5 más recientes para la Tabla
   const recentFiles = documentos.slice(0, 5);
 
+  // 🔥 NUEVO: Preparamos los datos para la gráfica de pastel (distribución de documentos por estatus)
+  const rechazadosCount = documentos.filter(doc => doc.estado === 'Rechazado').length;
+  const datosGraficaEstado = [
+    { name: 'Validados', value: validados, color: '#059669' },
+    { name: 'Pendientes', value: pendientes, color: '#F2D700' },
+    { name: 'Rechazados', value: rechazadosCount, color: '#DC2626' },
+  ].filter(item => item.value > 0);
+
   return (
     <div className="space-y-8">
       {/* Header de Bienvenida */}
@@ -145,6 +155,43 @@ const PanelDashboard = () => {
           </div>
         ))}
       </div>
+
+      {/* 🔥 NUEVO: SECCIÓN DE LA GRÁFICA DE DISTRIBUCIÓN */}
+      <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+        <div className="flex items-center gap-2 text-emerald-600 font-bold border-b pb-3">
+          <HiOutlineDocumentText size={24} />
+          <h2>Distribución de Documentos por Estatus</h2>
+        </div>
+        <div className="w-full h-64 mt-2">
+          {documentos.length === 0 ? (
+            <div className="flex items-center justify-center h-full text-slate-400 text-sm">
+              {t('dashboard.sin_docs')}
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={datosGraficaEstado}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={90}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {datosGraficaEstado.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} 
+                />
+                <Legend wrapperStyle={{ paddingTop: '10px' }} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </section>
 
       {/* Tabla de Archivos Recientes  */}
       <section className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">

@@ -5,11 +5,14 @@ import {
   HiOutlineTrash, 
   HiOutlineCheck, 
   HiOutlineDocumentReport, 
-  HiOutlineDatabase 
+  HiOutlineDatabase,
+  HiOutlineChartBar // 🔥 NUEVO: Icono para la gráfica
 } from "react-icons/hi";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useTranslation } from 'react-i18next'; // 🔥 1. Importamos el traductor
+// 🔥 NUEVO: Importamos los componentes de Recharts para la gráfica
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const TAB_INDEX = { usuarios: 0, reportes: 1 };
 
@@ -26,6 +29,9 @@ const AdminDirector = () => {
 
   // Estado real de usuarios pendientes
   const [usuariosPendientes, setUsuariosPendientes] = useState([]);
+
+  // 🔥 NUEVO: Estado para almacenar los datos de la gráfica
+  const [datosGrafica, setDatosGrafica] = useState([]);
 
   // ==========================================
   // CARGA INICIAL (CONFIGURACIÓN Y USUARIOS)
@@ -63,6 +69,61 @@ const AdminDirector = () => {
 
     obtenerDatosIniciales();
   }, []);
+
+  // 🔥 NUEVO: Efecto para cargar los datos de la gráfica cuando se abre la pestaña de reportes
+  useEffect(() => {
+    if (tabActiva === 'reportes') {
+      const cargarDatosGrafica = async () => {
+        try {
+          const hoy = new Date();
+          const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString();
+          const finMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0, 23, 59, 59).toISOString();
+          
+          // 🔥 NUEVO: Se agregó 'asunto' a la consulta de logs para poder clasificarlos
+          const { data: docs } = await supabase.from('DOCUMENTO').select('fecha').gte('fecha', inicioMes).lte('fecha', finMes);
+          const { data: logs } = await supabase.from('LOGS').select('created_at, asunto').gte('created_at', inicioMes).lte('created_at', finMes);
+
+          // Preparamos un objeto con todos los días del mes en curso (inicializados en 0)
+          const diasEnMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate();
+          const agrupado = {};
+          
+          // 🔥 NUEVO: El ciclo asegura que la gráfica cubra desde el día 1 hasta el último día del mes
+          for(let i = 1; i <= diasEnMes; i++) {
+            const diaStr = i.toString().padStart(2, '0');
+            // 🔥 NUEVO: Separamos las incidencias en modificaciones y eliminaciones
+            agrupado[diaStr] = { dia: diaStr, documentos: 0, modificaciones: 0, eliminaciones: 0 };
+          }
+
+          // 🔥 NUEVO: Sumamos los documentos por día
+          docs?.forEach(d => {
+            const dia = new Date(d.fecha).getDate().toString().padStart(2, '0');
+            if(agrupado[dia]) agrupado[dia].documentos += 1;
+          });
+
+          // 🔥 NUEVO: Sumamos y clasificamos las incidencias (logs) por día según su asunto
+          logs?.forEach(l => {
+            const dia = new Date(l.created_at).getDate().toString().padStart(2, '0');
+            if(agrupado[dia]) {
+              const asun = (l.asunto || '').toLowerCase();
+              if (asun.includes('elimin') || asun.includes('borr')) {
+                agrupado[dia].eliminaciones += 1;
+              } else if (asun.includes('modific') || asun.includes('actualiz') || asun.includes('edit')) {
+                agrupado[dia].modificaciones += 1;
+              }
+            }
+          });
+
+          // 🔥 NUEVO: Convertimos el objeto en un array y lo ordenamos estrictamente del 01 al último día
+          const datosOrdenados = Object.values(agrupado).sort((a, b) => parseInt(a.dia) - parseInt(b.dia));
+          setDatosGrafica(datosOrdenados);
+        } catch (error) {
+          console.error("Error al cargar datos de la gráfica:", error);
+        }
+      };
+
+      cargarDatosGrafica();
+    }
+  }, [tabActiva]);
 
   const cambiarTab = (nuevoTab) => {
     if (nuevoTab === tabActiva) return;
@@ -280,12 +341,24 @@ const AdminDirector = () => {
       const doc = new jsPDF();
       autoTable(doc, {
         startY: 35,
-        head: [[t('admin.pdf_col_asunto'), t('admin.pdf_col_fecha_log'), t('admin.pdf_col_hora')]],
+        // 🔥 NUEVO: Se agregó la columna "Tipo de Incidencia" para diferenciar modificaciones/eliminaciones
+        head: [[t('admin.pdf_col_asunto'), 'Tipo de Incidencia', t('admin.pdf_col_fecha_log'), t('admin.pdf_col_hora')]],
         body: logs.map(log => {
           const fechaObj = new Date(log.created_at);
+          
+          // 🔥 NUEVO: Analizamos el asunto para detectar si es eliminación o modificación de forma dinámica
+          const asuntoTexto = (log.asunto || '').toLowerCase();
+          let tipoIncidencia = 'Otro / Registro';
+          if (asuntoTexto.includes('elimin') || asuntoTexto.includes('borr')) {
+            tipoIncidencia = 'Eliminación';
+          } else if (asuntoTexto.includes('modific') || asuntoTexto.includes('actualiz') || asuntoTexto.includes('edit')) {
+            tipoIncidencia = 'Modificación';
+          }
+
           // Separamos la fecha y la hora para que la gente normal lo entienda xd
           return [
             log.asunto || t('admin.sin_asunto'),
+            tipoIncidencia, // 🔥 NUEVO: Se pasa el tipo extraído a la tabla
             fechaObj.toLocaleDateString('es-MX'), // Da un formato como DD/MM/YYYY
             fechaObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute:'2-digit' }) // Da un formato como HH:MM
           ];
@@ -391,7 +464,44 @@ const AdminDirector = () => {
 
         {/* VISTA 2: REPORTES Y DB */}
         {tabActiva === 'reportes' && (
-          <div className={`animate-slide-in-${direccion === 'derecha' ? 'right' : 'left'} w-full space-y-6`}>
+          <div className={`animate-slide-in-${direccion === 'derecha' ? 'right' : 'left'} w-full space-y-6 pb-10`}>
+            
+            {/* 🔥 NUEVO: SECCIÓN DE LA GRÁFICA 🔥 */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+              <div className="flex items-center gap-2 text-indigo-600 font-bold border-b pb-3">
+                <HiOutlineChartBar size={24} />
+                <h2>Actividad del Mes (Documentos vs Incidencias)</h2>
+              </div>
+              
+              <div className="w-full h-72 mt-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={datosGrafica} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                    
+                    {/* 🔥 NUEVO: interval={0} fuerza a pintar todas las etiquetas en orden cronológico exacto */}
+                    <XAxis 
+                      dataKey="dia" 
+                      tick={{fontSize: 10, fill: '#64748B'}} 
+                      axisLine={false} 
+                      tickLine={false} 
+                      interval={0} 
+                    />
+                    
+                    <YAxis tick={{fontSize: 12, fill: '#64748B'}} axisLine={false} tickLine={false} />
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                      labelFormatter={(label) => `Día ${label}`}
+                    />
+                    <Legend wrapperStyle={{ paddingTop: '10px' }} />
+                    <Bar dataKey="documentos" name="Nuevos Documentos" fill="#059669" radius={[4, 4, 0, 0]} />
+                    {/* 🔥 NUEVO: Ahora la gráfica separa visualmente si hubo una modificación o eliminación */}
+                    <Bar dataKey="modificaciones" name="Modificaciones" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="eliminaciones" name="Eliminaciones" fill="#EF4444" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
                 <div className="flex items-center gap-2 text-emerald-600 font-bold border-b pb-3">
