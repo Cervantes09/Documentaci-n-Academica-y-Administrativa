@@ -45,9 +45,10 @@ const AdminDirector = () => {
           .eq('id', 'config_backup')
           .single();
 
+        if (error) throw error;
         if (data) {
-          setHoraRespaldo(data.hora_respaldo.substring(0, 5));
-          setFrecuencia(data.frecuencia);
+          setHoraRespaldo(data.hora_respaldo ? data.hora_respaldo.substring(0, 5) : "02:00");
+          setFrecuencia(data.frecuencia || "Diario");
         }
       } catch (err) {
         console.error("Error al recuperar configuración inicial:", err);
@@ -280,7 +281,7 @@ const AdminDirector = () => {
         headStyles: { fillColor: [5, 150, 105], textColor: [255, 255, 255], fontStyle: 'bold' },
         alternateRowStyles: { fillColor: [245, 255, 250] },
         styles: { fontSize: 10, cellPadding: 3 },
-        didDrawPage: (data) => {
+        didDrawPage: () => {
           doc.setFontSize(18);
           doc.setTextColor(5, 150, 105);
           doc.text(`${t('admin.pdf_titulo_docs')} - ${new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(hoy)}`, 14, 20);
@@ -317,15 +318,15 @@ const AdminDirector = () => {
       const doc = new jsPDF();
       autoTable(doc, {
         startY: 35,
-        head: [[t('admin.pdf_col_asunto'), 'Tipo de Incidencia', t('admin.pdf_col_fecha_log'), t('admin.pdf_col_hora')]],
+        head: [[t('admin.pdf_col_asunto'), t('admin.pdf_col_tipo_incidencia', 'Tipo de Incidencia'), t('admin.pdf_col_fecha_log'), t('admin.pdf_col_hora')]],
         body: logs.map(log => {
           const fechaObj = new Date(log.created_at);
           const asuntoTexto = (log.asunto || '').toLowerCase();
-          let tipoIncidencia = 'Otro / Registro';
+          let tipoIncidencia = t('admin.tipo_otro', 'Otro / Registro');
           if (asuntoTexto.includes('elimin') || asuntoTexto.includes('borr')) {
-            tipoIncidencia = 'Eliminación';
+            tipoIncidencia = t('admin.tipo_eliminacion', 'Eliminación');
           } else if (asuntoTexto.includes('modific') || asuntoTexto.includes('actualiz') || asuntoTexto.includes('edit')) {
-            tipoIncidencia = 'Modificación';
+            tipoIncidencia = t('admin.tipo_modificacion', 'Modificación');
           }
           return [
             log.asunto || t('admin.sin_asunto'),
@@ -337,7 +338,7 @@ const AdminDirector = () => {
         headStyles: { fillColor: [5, 150, 105], textColor: [255, 255, 255], fontStyle: 'bold' },
         alternateRowStyles: { fillColor: [245, 255, 250] },
         styles: { fontSize: 10, cellPadding: 3 },
-        didDrawPage: (data) => {
+        didDrawPage: () => {
           doc.setFontSize(18);
           doc.setTextColor(5, 150, 105);
           doc.text(`${t('admin.pdf_titulo_incidencias')} - ${new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(hoy)}`, 14, 20);
@@ -437,27 +438,23 @@ const AdminDirector = () => {
         {tabActiva === 'reportes' && (
           <div className={`animate-slide-in-${direccion === 'derecha' ? 'right' : 'left'} w-full space-y-6 pb-10`}>
             
-            {/* 🔥 SECCIÓN DE LA GRÁFICA RESPONSIVA 🔥 */}
+            {/* SECCIÓN DE LA GRÁFICA RESPONSIVA */}
             <div className="bg-white p-4 md:p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-3 gap-2">
                 <div className="flex items-center gap-2 text-indigo-600 font-bold">
                   <HiOutlineChartBar size={24} />
-                  <h2>Actividad del Mes (Documentos vs Incidencias)</h2>
+                  <h2>{t('admin.chart_titulo', 'Actividad del Mes (Documentos vs Incidencias)')}</h2>
                 </div>
-                {/* Indicador visual para que los usuarios en móvil sepan que hay scroll */}
                 <span className="text-xs text-slate-400 italic md:hidden animate-pulse">
-                  Desliza para ver más ➔
+                  {t('admin.desliza_mas', 'Desliza para ver más ➔')}
                 </span>
               </div>
               
-              {/* Contenedor con scroll horizontal para dispositivos móviles */}
               <div className="w-full overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200">
-                {/* min-w-[800px] fuerza a la gráfica a mantener su legibilidad en móvil */}
                 <div className="min-w-[800px] md:min-w-full h-80 mt-2">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={datosGrafica} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                      
                       <XAxis 
                         dataKey="dia" 
                         tick={{fontSize: 10, fill: '#64748B'}} 
@@ -465,16 +462,15 @@ const AdminDirector = () => {
                         tickLine={false} 
                         interval={0} 
                       />
-                      
                       <YAxis tick={{fontSize: 12, fill: '#64748B'}} axisLine={false} tickLine={false} />
                       <Tooltip 
                         contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                        labelFormatter={(label) => `Día ${label}`}
+                        labelFormatter={(label) => `${t('admin.label_dia', 'Día')} ${label}`}
                       />
                       <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                      <Bar dataKey="documentos" name="Nuevos Documentos" fill="#059669" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="modificaciones" name="Modificaciones" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="eliminaciones" name="Eliminaciones" fill="#EF4444" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="documentos" name={t('admin.bar_documentos', 'Nuevos Documentos')} fill="#059669" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="modificaciones" name={t('admin.bar_modificaciones', 'Modificaciones')} fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="eliminaciones" name={t('admin.bar_eliminaciones', 'Eliminaciones')} fill="#EF4444" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
