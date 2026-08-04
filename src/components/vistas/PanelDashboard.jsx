@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { HiOutlineDocumentText, HiOutlineCloudUpload, HiOutlineCheckCircle, HiOutlineClock } from "react-icons/hi";
+import { HiOutlineDocumentText, HiOutlineCloudUpload, HiOutlineCheckCircle, HiOutlineClock, HiOutlinePrinter } from "react-icons/hi";
 import SubirArchivo from './SubirArchivo.jsx'; // Tu componente del modal
 import { supabase } from '../../lib/supabase'; // Importación de Supabase
 import { useTranslation } from 'react-i18next'; // 🔥 1. Importamos el traductor
-// 🔥 NUEVO: Importamos componentes de Recharts para la gráfica de distribución (tipo Pie/Donut diferente al anterior)
+// 🔥 Importamos componentes de Recharts para la gráfica de distribución
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const PanelDashboard = () => {
@@ -17,6 +17,7 @@ const PanelDashboard = () => {
   // Estado para guardar los documentos reales de la BD
   const [documentos, setDocumentos] = useState([]);
   const [descargandoId, setDescargandoId] = useState(null);
+  const [generandoReporte, setGenerandoReporte] = useState(false);
 
   // Efecto para obtener los datos al cargar el Dashboard
   useEffect(() => {
@@ -104,6 +105,110 @@ const PanelDashboard = () => {
     }
   };
 
+  // 🔥 NUEVA FUNCIONALIDAD: Generar Reporte de Documentos Personales
+  const generarReportePersonal = () => {
+    if (documentos.length === 0) {
+      alert(t('dashboard.sin_docs') || "No hay documentos para generar el reporte.");
+      return;
+    }
+
+    setGenerandoReporte(true);
+    try {
+      // Creamos una ventana emergente con el diseño del reporte listo para imprimir o guardar como PDF
+      const ventanaReporte = window.open('', '_blank');
+      
+      const contenidoHTML = `
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+          <meta charset="UTF-8">
+          <title>Reporte de Documentos Personales</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #333; margin: 40px; }
+            h1 { color: #059669; font-size: 24px; margin-bottom: 5px; }
+            p.sub { color: #666; font-size: 14px; margin-top: 0; }
+            .stats { display: flex; gap: 20px; margin: 20px 0; }
+            .stat-card { background: #f3f4f6; padding: 15px; border-radius: 8px; flex: 1; text-align: center; }
+            .stat-card h3 { margin: 0; font-size: 14px; color: #555; text-transform: uppercase; }
+            .stat-card p { margin: 5px 0 0; font-size: 20px; font-weight: bold; color: #111; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 13px; }
+            th { background-color: #059669; color: white; }
+            tr:nth-child(even) { background-color: #f9fafb; }
+            .badge { padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; display: inline-block; }
+            .Validado { background: #d1fae5; color: #065f46; }
+            .Pendiente { background: #fef3c7; color: #92400e; }
+            .Rechazado { background: #fee2e2; color: #991b1b; }
+            .footer { margin-top: 30px; text-align: center; font-size: 12px; color: #888; }
+          </style>
+        </head>
+        <body>
+          <h1>Reporte General de Documentos Personales</h1>
+          <p class="sub">Fecha de emisión: ${new Date().toLocaleDateString()} - ${new Date().toLocaleTimeString()}</p>
+          
+          <div class="stats">
+            <div class="stat-card">
+              <h3>Total Documentos</h3>
+              <p>${totalDocs}</p>
+            </div>
+            <div class="stat-card">
+              <h3>Validados</h3>
+              <p>${validados}</p>
+            </div>
+            <div class="stat-card">
+              <h3>Pendientes</h3>
+              <p>${pendientes}</p>
+            </div>
+            <div class="stat-card">
+              <h3>Rechazados</h3>
+              <p>${rechazadosCount}</p>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Nombre del Documento</th>
+                <th>Tipo</th>
+                <th>Fecha de Registro</th>
+                <th>Estatus</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${documentos.map(doc => `
+                <tr>
+                  <td>${doc.nombre || doc.archivo?.split('/').pop() || 'Documento'}</td>
+                  <td><b>${doc.tipo || 'N/A'}</b></td>
+                  <td>${new Date(doc.fecha).toLocaleDateString()}</td>
+                  <td><span class="badge ${doc.estado || 'Pendiente'}">${doc.estado || 'Pendiente'}</span></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="footer">
+            <p>Este reporte es un documento informativo generado desde el sistema de gestión de documentos.</p>
+          </div>
+
+          <script>
+            window.onload = function() {
+              window.print();
+            }
+          </script>
+        </body>
+        </html>
+      `;
+
+      ventanaReporte.document.write(contenidoHTML);
+      ventanaReporte.document.close();
+    } catch (error) {
+      console.error("Error al generar reporte:", error);
+      alert("Ocurrió un error al generar el reporte.");
+    } finally {
+      setGenerandoReporte(false);
+    }
+  };
+
   // Cálculos dinámicos para las Cards
   const totalDocs = documentos.length;
   
@@ -113,8 +218,9 @@ const PanelDashboard = () => {
   
   const validados = documentos.filter(doc => doc.estado === 'Validado').length;
   const pendientes = documentos.filter(doc => doc.estado === 'Pendiente').length;
+  const rechazadosCount = documentos.filter(doc => doc.estado === 'Rechazado').length;
 
-  // Datos dinámicos para las Cards (reemplazando los simulados)
+  // Datos dinámicos para las Cards
   const stats = [
     { label: t('dashboard.stat_total'), value: totalDocs.toString(), icon: <HiOutlineDocumentText size={24}/>, color: "text-blue-600", bg: "bg-blue-100" },
     { label: t('dashboard.stat_hoy'), value: subidosHoy.toString(), icon: <HiOutlineCloudUpload size={24}/>, color: "text-emerald-600", bg: "bg-emerald-100" },
@@ -125,8 +231,7 @@ const PanelDashboard = () => {
   // Obtenemos solo los 5 más recientes para la Tabla
   const recentFiles = documentos.slice(0, 5);
 
-  // 🔥 NUEVO: Preparamos los datos para la gráfica de pastel (distribución de documentos por estatus)
-  const rechazadosCount = documentos.filter(doc => doc.estado === 'Rechazado').length;
+  // Preparamos los datos para la gráfica de pastel (distribución de documentos por estatus)
   const datosGraficaEstado = [
     { name: 'Validados', value: validados, color: '#059669' },
     { name: 'Pendientes', value: pendientes, color: '#F2D700' },
@@ -135,16 +240,28 @@ const PanelDashboard = () => {
 
   return (
     <div className="space-y-8">
-      {/* Header de Bienvenida */}
-      <header>
-        <h1 className="text-2xl font-bold text-slate-800">{t('dashboard.titulo')}</h1>
-        <p className="text-slate-500 text-sm">{t('dashboard.subtitulo')}</p>
+      {/* Header de Bienvenida con Botón de Generar Reporte */}
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">{t('dashboard.titulo')}</h1>
+          <p className="text-slate-500 text-sm">{t('dashboard.subtitulo')}</p>
+        </div>
+        
+        {/* 🔥 Botón para generar reporte */}
+        <button
+          onClick={generarReportePersonal}
+          disabled={generandoReporte || documentos.length === 0}
+          className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2.5 rounded-xl shadow-sm transition-all cursor-pointer disabled:opacity-50 text-sm"
+        >
+          <HiOutlinePrinter size={18} />
+          {generandoReporte ? (t('dashboard.btn_generando') || 'Generando...') : (t('dashboard.btn_generar_reporte') || 'Generar Reporte')}
+        </button>
       </header>
 
       {/* Sección de Cards  */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 cursor-pointer">
         {stats.map((stat, i) => (
-          <div key={i} className="bg-white  hover:bg-gray-100 p-5 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 hover:shadow-md transition-shadow">
+          <div key={i} className="bg-white hover:bg-gray-100 p-5 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 hover:shadow-md transition-shadow">
             <div className={`p-3 rounded-lg ${stat.bg} ${stat.color}`}>
               {stat.icon}
             </div>
@@ -156,7 +273,7 @@ const PanelDashboard = () => {
         ))}
       </div>
 
-      {/* 🔥 NUEVO: SECCIÓN DE LA GRÁFICA DE DISTRIBUCIÓN */}
+      {/* SECCIÓN DE LA GRÁFICA DE DISTRIBUCIÓN */}
       <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
         <div className="flex items-center gap-2 text-emerald-600 font-bold border-b pb-3">
           <HiOutlineDocumentText size={24} />
@@ -252,7 +369,7 @@ const PanelDashboard = () => {
         </div>
       </section>
 
-      {/* Botón Flotante de Subida (Opcional - Usabilidad)  */}
+      {/* Botón Flotante de Subida */}
       <button className="fixed bottom-8 right-8 bg-emerald-600 text-white p-4 rounded-full shadow-xl hover:bg-emerald-700 hover:scale-110 transition-all group"
         onClick={() => setIsModalOpen(true)}>
         <HiOutlineCloudUpload size={28} />
@@ -261,15 +378,14 @@ const PanelDashboard = () => {
         </span>
       </button>
 
-      {/* 3. Inyectamos el componente del Modal y le pasamos las props */}
+      {/* Componente del Modal */}
       <SubirArchivo
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onUploadSuccess={recargar} // Agregamos esto para que refresque al subir
+        onUploadSuccess={recargar}
       />
 
     </div>
-    
   );
 };
 
