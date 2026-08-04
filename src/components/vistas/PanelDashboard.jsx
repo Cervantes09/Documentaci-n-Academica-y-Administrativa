@@ -96,8 +96,8 @@ const PanelDashboard = () => {
     }
   };
 
-  // Genera el reporte y abre el diálogo para guardarlo como PDF
-  const generarReportePersonal = () => {
+  // 🔥 Genera y descarga el reporte directamente en PDF
+  const generarReportePersonal = async () => {
     if (documentos.length === 0) {
       alert("No hay documentos para generar el reporte.");
       return;
@@ -105,100 +105,88 @@ const PanelDashboard = () => {
 
     setGenerandoReporte(true);
     try {
-      const ventanaReporte = window.open('', '_blank');
-      
-      const contenidoHTML = `
-        <!DOCTYPE html>
-        <html lang="es">
-        <head>
-          <meta charset="UTF-8">
-          <title>Reporte de Documentos Personales</title>
-          <style>
-            body { font-family: Arial, sans-serif; color: #333; margin: 40px; }
-            h1 { color: #059669; font-size: 24px; margin-bottom: 5px; }
-            p.sub { color: #666; font-size: 14px; margin-top: 0; }
-            .stats { display: flex; gap: 20px; margin: 20px 0; }
-            .stat-card { background: #f3f4f6; padding: 15px; border-radius: 8px; flex: 1; text-align: center; }
-            .stat-card h3 { margin: 0; font-size: 14px; color: #555; text-transform: uppercase; }
-            .stat-card p { margin: 5px 0 0; font-size: 20px; font-weight: bold; color: #111; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 13px; }
-            th { background-color: #059669; color: white; }
-            tr:nth-child(even) { background-color: #f9fafb; }
-            .badge { padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; display: inline-block; }
-            .Validado { background: #d1fae5; color: #065f46; }
-            .Pendiente { background: #fef3c7; color: #92400e; }
-            .Rechazado { background: #fee2e2; color: #991b1b; }
-            .footer { margin-top: 30px; text-align: center; font-size: 12px; color: #888; }
-            @media print {
-              body { margin: 20px; }
-            }
-          </style>
-        </head>
-        <body>
-          <h1>Reporte General de Documentos Personales</h1>
-          <p class="sub">Fecha de emisión: ${new Date().toLocaleDateString()} - ${new Date().toLocaleTimeString()}</p>
+      // Cargamos html2pdf.js de forma dinámica si no está disponible en la ventana
+      if (!window.html2pdf) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+          script.onload = resolve;
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+      }
+
+      // Creamos un contenedor temporal con el diseño del reporte
+      const elementoReporte = document.createElement('div');
+      elementoReporte.innerHTML = `
+        <div style="font-family: Arial, sans-serif; color: #333; padding: 25px; background: white;">
+          <h1 style="color: #059669; font-size: 22px; margin-bottom: 5px;">Reporte General de Documentos Personales</h1>
+          <p style="color: #666; font-size: 13px; margin-top: 0;">Fecha de emisión: ${new Date().toLocaleDateString()} - ${new Date().toLocaleTimeString()}</p>
           
-          <div class="stats">
-            <div class="stat-card">
-              <h3>Total Documentos</h3>
-              <p>${totalDocs}</p>
+          <div style="display: flex; gap: 15px; margin: 20px 0;">
+            <div style="background: #f3f4f6; padding: 12px; border-radius: 8px; flex: 1; text-align: center;">
+              <h3 style="margin: 0; font-size: 12px; color: #555; text-transform: uppercase;">Total Documentos</h3>
+              <p style="margin: 5px 0 0; font-size: 18px; font-weight: bold; color: #111;">${totalDocs}</p>
             </div>
-            <div class="stat-card">
-              <h3>Validados</h3>
-              <p>${validados}</p>
+            <div style="background: #f3f4f6; padding: 12px; border-radius: 8px; flex: 1; text-align: center;">
+              <h3 style="margin: 0; font-size: 12px; color: #555; text-transform: uppercase;">Validados</h3>
+              <p style="margin: 5px 0 0; font-size: 18px; font-weight: bold; color: #111;">${validados}</p>
             </div>
-            <div class="stat-card">
-              <h3>Pendientes</h3>
-              <p>${pendientes}</p>
+            <div style="background: #f3f4f6; padding: 12px; border-radius: 8px; flex: 1; text-align: center;">
+              <h3 style="margin: 0; font-size: 12px; color: #555; text-transform: uppercase;">Pendientes</h3>
+              <p style="margin: 5px 0 0; font-size: 18px; font-weight: bold; color: #111;">${pendientes}</p>
             </div>
-            <div class="stat-card">
-              <h3>Rechazados</h3>
-              <p>${rechazadosCount}</p>
+            <div style="background: #f3f4f6; padding: 12px; border-radius: 8px; flex: 1; text-align: center;">
+              <h3 style="margin: 0; font-size: 12px; color: #555; text-transform: uppercase;">Rechazados</h3>
+              <p style="margin: 5px 0 0; font-size: 18px; font-weight: bold; color: #111;">${rechazadosCount}</p>
             </div>
           </div>
 
-          <table>
+          <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
             <thead>
               <tr>
-                <th>Nombre del Documento</th>
-                <th>Tipo</th>
-                <th>Fecha de Registro</th>
-                <th>Estatus</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; background-color: #059669; color: white;">Nombre del Documento</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; background-color: #059669; color: white;">Tipo</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; background-color: #059669; color: white;">Fecha de Registro</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; background-color: #059669; color: white;">Estatus</th>
               </tr>
             </thead>
             <tbody>
-              ${documentos.map(doc => `
-                <tr>
-                  <td>${doc.nombre || doc.archivo?.split('/').pop() || 'Documento'}</td>
-                  <td><b>${doc.tipo || 'N/A'}</b></td>
-                  <td>${new Date(doc.fecha).toLocaleDateString()}</td>
-                  <td><span class="badge ${doc.estado || 'Pendiente'}">${doc.estado || 'Pendiente'}</span></td>
+              ${documentos.map((doc, index) => `
+                <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f9fafb'};">
+                  <td style="border: 1px solid #ddd; padding: 8px; font-size: 12px;">${doc.nombre || doc.archivo?.split('/').pop() || 'Documento'}</td>
+                  <td style="border: 1px solid #ddd; padding: 8px; font-size: 12px;"><b>${doc.tipo || 'N/A'}</b></td>
+                  <td style="border: 1px solid #ddd; padding: 8px; font-size: 12px;">${new Date(doc.fecha).toLocaleDateString()}</td>
+                  <td style="border: 1px solid #ddd; padding: 8px; font-size: 12px;">
+                    <span style="padding: 3px 6px; border-radius: 10px; font-size: 10px; font-weight: bold; display: inline-block; background: ${doc.estado === 'Validado' ? '#d1fae5; color: #065f46;' : doc.estado === 'Pendiente' ? '#fef3c7; color: #92400e;' : '#fee2e2; color: #991b1b;'}">
+                      ${doc.estado || 'Pendiente'}
+                    </span>
+                  </td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
 
-          <div class="footer">
+          <div style="margin-top: 25px; text-align: center; font-size: 11px; color: #888;">
             <p>Este reporte es un documento informativo generado desde el sistema de gestión de documentos.</p>
           </div>
-
-          <script>
-            window.onload = function() {
-              setTimeout(() => {
-                window.print();
-              }, 300);
-            }
-          </script>
-        </body>
-        </html>
+        </div>
       `;
 
-      ventanaReporte.document.write(contenidoHTML);
-      ventanaReporte.document.close();
+      const opciones = {
+        margin:       10,
+        filename:     `reporte_documentos_${new Date().toISOString().slice(0, 10)}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      // Ejecutamos la descarga directa del PDF
+      await window.html2pdf().from(elementoReporte).set(opciones).save();
+
     } catch (error) {
-      console.error("Error al generar reporte PDF:", error);
-      alert("Ocurrió un error al generar el reporte.");
+      console.error("Error al generar el PDF:", error);
+      alert("Ocurrió un error al generar el reporte en PDF.");
     } finally {
       setGenerandoReporte(false);
     }
@@ -234,13 +222,14 @@ const PanelDashboard = () => {
           <p className="text-slate-500 text-sm">{t('dashboard.subtitulo')}</p>
         </div>
         
+        {/* Botón con el texto solicitado */}
         <button
           onClick={generarReportePersonal}
           disabled={generandoReporte || documentos.length === 0}
           className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2.5 rounded-xl shadow-sm transition-all cursor-pointer disabled:opacity-50 text-sm"
         >
           <HiOutlineDownload size={18} />
-          {generandoReporte ? 'Generando...' : 'Generar reporte de documentos'}
+          {generandoReporte ? 'Generando PDF...' : 'Generar reporte de documentos'}
         </button>
       </header>
 
