@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { HiOutlineDocumentText, HiOutlineCloudUpload, HiOutlineCheckCircle, HiOutlineClock, HiOutlinePrinter } from "react-icons/hi";
+import { HiOutlineDocumentText, HiOutlineCloudUpload, HiOutlineCheckCircle, HiOutlineClock, HiOutlineDownload } from "react-icons/hi";
 import SubirArchivo from './SubirArchivo.jsx'; // Tu componente del modal
 import { supabase } from '../../lib/supabase'; // Importación de Supabase
 import { useTranslation } from 'react-i18next'; // 🔥 1. Importamos el traductor
@@ -105,7 +105,7 @@ const PanelDashboard = () => {
     }
   };
 
-  // 🔥 NUEVA FUNCIONALIDAD: Generar Reporte de Documentos Personales
+  // 🔥 NUEVA FUNCIONALIDAD: Generar y Descargar Reporte de Documentos Personales
   const generarReportePersonal = () => {
     if (documentos.length === 0) {
       alert(t('dashboard.sin_docs') || "No hay documentos para generar el reporte.");
@@ -114,9 +114,6 @@ const PanelDashboard = () => {
 
     setGenerandoReporte(true);
     try {
-      // Creamos una ventana emergente con el diseño del reporte listo para imprimir o guardar como PDF
-      const ventanaReporte = window.open('', '_blank');
-      
       const contenidoHTML = `
         <!DOCTYPE html>
         <html lang="es">
@@ -189,21 +186,24 @@ const PanelDashboard = () => {
           <div class="footer">
             <p>Este reporte es un documento informativo generado desde el sistema de gestión de documentos.</p>
           </div>
-
-          <script>
-            window.onload = function() {
-              window.print();
-            }
-          </script>
         </body>
         </html>
       `;
 
-      ventanaReporte.document.write(contenidoHTML);
-      ventanaReporte.document.close();
+      // Creamos un Blob con el contenido HTML y forzamos la descarga directa
+      const blob = new Blob([contenidoHTML], { type: 'text/html;charset=utf-8;' });
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `reporte_documentos_${new Date().toISOString().slice(0, 10)}.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+
     } catch (error) {
-      console.error("Error al generar reporte:", error);
-      alert("Ocurrió un error al generar el reporte.");
+      console.error("Error al descargar el reporte:", error);
+      alert("Ocurrió un error al descargar el reporte.");
     } finally {
       setGenerandoReporte(false);
     }
@@ -240,21 +240,21 @@ const PanelDashboard = () => {
 
   return (
     <div className="space-y-8">
-      {/* Header de Bienvenida con Botón de Generar Reporte */}
+      {/* Header de Bienvenida con Botón de Descargar Reporte */}
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">{t('dashboard.titulo')}</h1>
           <p className="text-slate-500 text-sm">{t('dashboard.subtitulo')}</p>
         </div>
         
-        {/* 🔥 Botón para generar reporte */}
+        {/* 🔥 Botón para descargar reporte */}
         <button
           onClick={generarReportePersonal}
           disabled={generandoReporte || documentos.length === 0}
           className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2.5 rounded-xl shadow-sm transition-all cursor-pointer disabled:opacity-50 text-sm"
         >
-          <HiOutlinePrinter size={18} />
-          {generandoReporte ? (t('dashboard.btn_generando') || 'Generando...') : (t('dashboard.btn_generar_reporte') || 'Generar Reporte')}
+          <HiOutlineDownload size={18} />
+          {generandoReporte ? (t('dashboard.btn_descargando') || 'Descargando...') : (t('dashboard.btn_generar_reporte') || 'Descargar Reporte')}
         </button>
       </header>
 
