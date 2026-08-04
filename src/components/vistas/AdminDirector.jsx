@@ -6,18 +6,17 @@ import {
   HiOutlineCheck, 
   HiOutlineDocumentReport, 
   HiOutlineDatabase,
-  HiOutlineChartBar // 🔥 NUEVO: Icono para la gráfica
+  HiOutlineChartBar 
 } from "react-icons/hi";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { useTranslation } from 'react-i18next'; // 🔥 1. Importamos el traductor
-// 🔥 NUEVO: Importamos los componentes de Recharts para la gráfica
+import { useTranslation } from 'react-i18next';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const TAB_INDEX = { usuarios: 0, reportes: 1 };
 
 const AdminDirector = () => {
-  const { t } = useTranslation(); // 🔥 2. Inicializamos el traductor
+  const { t } = useTranslation(); 
 
   const [tabActiva, setTabActiva] = useState('usuarios');
   const [direccion, setDireccion] = useState('derecha');
@@ -30,7 +29,7 @@ const AdminDirector = () => {
   // Estado real de usuarios pendientes
   const [usuariosPendientes, setUsuariosPendientes] = useState([]);
 
-  // 🔥 NUEVO: Estado para almacenar los datos de la gráfica
+  // Estado para almacenar los datos de la gráfica
   const [datosGrafica, setDatosGrafica] = useState([]);
 
   // ==========================================
@@ -54,10 +53,10 @@ const AdminDirector = () => {
         console.error("Error al recuperar configuración inicial:", err);
       }
 
-      // 2. Obtener usuarios pendientes (AHORA DESDE LA VISTA SQL)
+      // 2. Obtener usuarios pendientes 
       try {
         const { data: usuarios, error: errorUsuarios } = await supabase
-          .from('vista_usuarios_pendientes') // <- Usamos la vista que cruza con AUTH
+          .from('vista_usuarios_pendientes') 
           .select('*');
 
         if (errorUsuarios) throw errorUsuarios;
@@ -70,7 +69,7 @@ const AdminDirector = () => {
     obtenerDatosIniciales();
   }, []);
 
-  // 🔥 NUEVO: Efecto para cargar los datos de la gráfica cuando se abre la pestaña de reportes
+  // Efecto para cargar los datos de la gráfica cuando se abre la pestaña de reportes
   useEffect(() => {
     if (tabActiva === 'reportes') {
       const cargarDatosGrafica = async () => {
@@ -79,28 +78,22 @@ const AdminDirector = () => {
           const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString();
           const finMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0, 23, 59, 59).toISOString();
           
-          // 🔥 NUEVO: Se agregó 'asunto' a la consulta de logs para poder clasificarlos
           const { data: docs } = await supabase.from('DOCUMENTO').select('fecha').gte('fecha', inicioMes).lte('fecha', finMes);
           const { data: logs } = await supabase.from('LOGS').select('created_at, asunto').gte('created_at', inicioMes).lte('created_at', finMes);
 
-          // Preparamos un objeto con todos los días del mes en curso (inicializados en 0)
           const diasEnMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate();
           const agrupado = {};
           
-          // 🔥 NUEVO: El ciclo asegura que la gráfica cubra desde el día 1 hasta el último día del mes
           for(let i = 1; i <= diasEnMes; i++) {
             const diaStr = i.toString().padStart(2, '0');
-            // 🔥 NUEVO: Separamos las incidencias en modificaciones y eliminaciones
             agrupado[diaStr] = { dia: diaStr, documentos: 0, modificaciones: 0, eliminaciones: 0 };
           }
 
-          // 🔥 NUEVO: Sumamos los documentos por día
           docs?.forEach(d => {
             const dia = new Date(d.fecha).getDate().toString().padStart(2, '0');
             if(agrupado[dia]) agrupado[dia].documentos += 1;
           });
 
-          // 🔥 NUEVO: Sumamos y clasificamos las incidencias (logs) por día según su asunto
           logs?.forEach(l => {
             const dia = new Date(l.created_at).getDate().toString().padStart(2, '0');
             if(agrupado[dia]) {
@@ -113,7 +106,6 @@ const AdminDirector = () => {
             }
           });
 
-          // 🔥 NUEVO: Convertimos el objeto en un array y lo ordenamos estrictamente del 01 al último día
           const datosOrdenados = Object.values(agrupado).sort((a, b) => parseInt(a.dia) - parseInt(b.dia));
           setDatosGrafica(datosOrdenados);
         } catch (error) {
@@ -137,7 +129,6 @@ const AdminDirector = () => {
   // ==========================================
   const cambiarRol = async (user, nuevoRol) => {
     try {
-      // Nota: El update sigue siendo a la tabla original 'usuario'
       const { error } = await supabase
         .from('usuario')
         .update({ tipousuario: nuevoRol })
@@ -146,7 +137,6 @@ const AdminDirector = () => {
       if (error) throw error;
       
       alert(`${t('admin.alert_aprobado')} ${nuevoRol.toUpperCase()}.`);
-      // Remover de la vista actual filtrando por usuarioid
       setUsuariosPendientes(prev => prev.filter(u => u.usuarioid !== user.usuarioid));
     } catch (error) {
       alert(`${t('admin.alert_error_rol')} ${error.message}`);
@@ -158,7 +148,6 @@ const AdminDirector = () => {
     if (!confirmar) return;
 
     try {
-      // 1. Eliminar de la tabla pública usando usuarioid
       const { error: dbError } = await supabase
         .from('usuario')
         .delete()
@@ -166,19 +155,15 @@ const AdminDirector = () => {
 
       if (dbError) throw dbError;
 
-      // 2. Eliminar de la tabla AUTH vía RPC usando la foránea (uid_fk)
       if (user.uid_fk) {
         const { error: authError } = await supabase.rpc('eliminar_usuario_auth', { 
           auth_uid: user.uid_fk 
         });
         
-        if (authError) {
-          console.warn("Borrado de la tabla usuario, pero fallo en Auth:", authError);
-        }
+        if (authError) console.warn("Borrado de la tabla usuario, pero fallo en Auth:", authError);
       }
 
       alert(t('admin.alert_eliminado'));
-      // Actualizamos la vista
       setUsuariosPendientes(prev => prev.filter(u => u.usuarioid !== user.usuarioid));
     } catch (error) {
       alert(`${t('admin.alert_error_eliminar')} ${error.message}`);
@@ -273,11 +258,7 @@ const AdminDirector = () => {
 
       const { data: documentos, error } = await supabase
         .from('DOCUMENTO')
-        .select(`
-          nombre,
-          fecha,
-          autor:usuarioFK ( nombre )
-        `)
+        .select(`nombre, fecha, autor:usuarioFK ( nombre )`)
         .gte('fecha', inicioMes)
         .lte('fecha', finMes);
 
@@ -315,17 +296,12 @@ const AdminDirector = () => {
     }
   }; 
 
-  // ==========================================
-  // NUEVA LÓGICA: REPORTE DE LOGS (INCIDENCIAS)
-  // ==========================================
   const generarReporteLogsPDF = async () => {
     try {
       const hoy = new Date();
-      // Filtramos por el mes actual
       const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString();
       const finMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0, 23, 59, 59).toISOString();
 
-      // Basado en tus capturas, la tabla se llama 'LOGS'
       const { data: logs, error } = await supabase
         .from('LOGS')
         .select('asunto, created_at')
@@ -341,12 +317,9 @@ const AdminDirector = () => {
       const doc = new jsPDF();
       autoTable(doc, {
         startY: 35,
-        // 🔥 NUEVO: Se agregó la columna "Tipo de Incidencia" para diferenciar modificaciones/eliminaciones
         head: [[t('admin.pdf_col_asunto'), 'Tipo de Incidencia', t('admin.pdf_col_fecha_log'), t('admin.pdf_col_hora')]],
         body: logs.map(log => {
           const fechaObj = new Date(log.created_at);
-          
-          // 🔥 NUEVO: Analizamos el asunto para detectar si es eliminación o modificación de forma dinámica
           const asuntoTexto = (log.asunto || '').toLowerCase();
           let tipoIncidencia = 'Otro / Registro';
           if (asuntoTexto.includes('elimin') || asuntoTexto.includes('borr')) {
@@ -354,13 +327,11 @@ const AdminDirector = () => {
           } else if (asuntoTexto.includes('modific') || asuntoTexto.includes('actualiz') || asuntoTexto.includes('edit')) {
             tipoIncidencia = 'Modificación';
           }
-
-          // Separamos la fecha y la hora para que la gente normal lo entienda xd
           return [
             log.asunto || t('admin.sin_asunto'),
-            tipoIncidencia, // 🔥 NUEVO: Se pasa el tipo extraído a la tabla
-            fechaObj.toLocaleDateString('es-MX'), // Da un formato como DD/MM/YYYY
-            fechaObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute:'2-digit' }) // Da un formato como HH:MM
+            tipoIncidencia, 
+            fechaObj.toLocaleDateString('es-MX'), 
+            fechaObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute:'2-digit' }) 
           ];
         }),
         headStyles: { fillColor: [5, 150, 105], textColor: [255, 255, 255], fontStyle: 'bold' },
@@ -466,39 +437,47 @@ const AdminDirector = () => {
         {tabActiva === 'reportes' && (
           <div className={`animate-slide-in-${direccion === 'derecha' ? 'right' : 'left'} w-full space-y-6 pb-10`}>
             
-            {/* 🔥 NUEVO: SECCIÓN DE LA GRÁFICA 🔥 */}
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
-              <div className="flex items-center gap-2 text-indigo-600 font-bold border-b pb-3">
-                <HiOutlineChartBar size={24} />
-                <h2>Actividad del Mes (Documentos vs Incidencias)</h2>
+            {/* 🔥 SECCIÓN DE LA GRÁFICA RESPONSIVA 🔥 */}
+            <div className="bg-white p-4 md:p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-3 gap-2">
+                <div className="flex items-center gap-2 text-indigo-600 font-bold">
+                  <HiOutlineChartBar size={24} />
+                  <h2>Actividad del Mes (Documentos vs Incidencias)</h2>
+                </div>
+                {/* Indicador visual para que los usuarios en móvil sepan que hay scroll */}
+                <span className="text-xs text-slate-400 italic md:hidden animate-pulse">
+                  Desliza para ver más ➔
+                </span>
               </div>
               
-              <div className="w-full h-72 mt-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={datosGrafica} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                    
-                    {/* 🔥 NUEVO: interval={0} fuerza a pintar todas las etiquetas en orden cronológico exacto */}
-                    <XAxis 
-                      dataKey="dia" 
-                      tick={{fontSize: 10, fill: '#64748B'}} 
-                      axisLine={false} 
-                      tickLine={false} 
-                      interval={0} 
-                    />
-                    
-                    <YAxis tick={{fontSize: 12, fill: '#64748B'}} axisLine={false} tickLine={false} />
-                    <Tooltip 
-                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                      labelFormatter={(label) => `Día ${label}`}
-                    />
-                    <Legend wrapperStyle={{ paddingTop: '10px' }} />
-                    <Bar dataKey="documentos" name="Nuevos Documentos" fill="#059669" radius={[4, 4, 0, 0]} />
-                    {/* 🔥 NUEVO: Ahora la gráfica separa visualmente si hubo una modificación o eliminación */}
-                    <Bar dataKey="modificaciones" name="Modificaciones" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="eliminaciones" name="Eliminaciones" fill="#EF4444" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+              {/* Contenedor con scroll horizontal para dispositivos móviles */}
+              <div className="w-full overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200">
+                {/* min-w-[800px] fuerza a la gráfica a mantener su legibilidad en móvil */}
+                <div className="min-w-[800px] md:min-w-full h-80 mt-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={datosGrafica} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                      
+                      <XAxis 
+                        dataKey="dia" 
+                        tick={{fontSize: 10, fill: '#64748B'}} 
+                        axisLine={false} 
+                        tickLine={false} 
+                        interval={0} 
+                      />
+                      
+                      <YAxis tick={{fontSize: 12, fill: '#64748B'}} axisLine={false} tickLine={false} />
+                      <Tooltip 
+                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        labelFormatter={(label) => `Día ${label}`}
+                      />
+                      <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                      <Bar dataKey="documentos" name="Nuevos Documentos" fill="#059669" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="modificaciones" name="Modificaciones" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="eliminaciones" name="Eliminaciones" fill="#EF4444" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </div>
 
@@ -512,7 +491,6 @@ const AdminDirector = () => {
                   <button onClick={generarReportePDF} className="w-full bg-slate-800 hover:bg-slate-900 cursor-pointer text-white font-bold py-3 px-4 rounded-lg text-sm transition-all flex items-center justify-center gap-2">
                     {t('admin.btn_reporte_docs')}
                   </button>
-                  {/* AQUÍ SE AGREGÓ LA LLAMADA AL NUEVO REPORTE */}
                   <button onClick={generarReporteLogsPDF} className="w-full bg-slate-100 hover:bg-slate-200 cursor-pointer text-slate-800 font-bold py-3 px-4 rounded-lg text-sm transition-all flex items-center justify-center gap-2">
                     {t('admin.btn_reporte_logs')}
                   </button>
