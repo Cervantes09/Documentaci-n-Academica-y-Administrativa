@@ -1,25 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { HiOutlineDocumentText, HiOutlineCloudUpload, HiOutlineCheckCircle, HiOutlineClock, HiOutlineDownload } from "react-icons/hi";
-import SubirArchivo from './SubirArchivo.jsx'; // Tu componente del modal
-import { supabase } from '../../lib/supabase'; // Importación de Supabase
-import { useTranslation } from 'react-i18next'; // 🔥 1. Importamos el traductor
-// 🔥 Importamos componentes de Recharts para la gráfica de distribución
+import SubirArchivo from './SubirArchivo.jsx';
+import { supabase } from '../../lib/supabase';
+import { useTranslation } from 'react-i18next';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const PanelDashboard = () => {
 
-  // 🔥 2. Inicializamos el traductor
   const { t } = useTranslation();
 
-  // 1. Estado para controlar si el modal está abierto o cerrado
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
-  // Estado para guardar los documentos reales de la BD
   const [documentos, setDocumentos] = useState([]);
   const [descargandoId, setDescargandoId] = useState(null);
   const [generandoReporte, setGenerandoReporte] = useState(false);
 
-  // Efecto para obtener los datos al cargar el Dashboard
   useEffect(() => {
     let activo = true;
 
@@ -35,7 +29,6 @@ const PanelDashboard = () => {
             .single();
 
           if (perfil) {
-            // Traemos TODOS los documentos del usuario para hacer los cálculos
             const { data, error } = await supabase
               .from('DOCUMENTO')
               .select('*')
@@ -56,7 +49,6 @@ const PanelDashboard = () => {
     return () => { activo = false; };
   }, []);
 
-  // Función para recargar la tabla después de subir un archivo nuevo
   const recargar = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -82,7 +74,6 @@ const PanelDashboard = () => {
       }
   };
 
-  // Función para descargar desde la tabla
   const forzarDescarga = async (url, nombreOriginal, id) => {
     try {
       setDescargandoId(id);
@@ -105,15 +96,17 @@ const PanelDashboard = () => {
     }
   };
 
-  // 🔥 NUEVA FUNCIONALIDAD: Generar y Descargar Reporte de Documentos Personales
+  // Genera el reporte y abre el diálogo para guardarlo como PDF
   const generarReportePersonal = () => {
     if (documentos.length === 0) {
-      alert(t('dashboard.sin_docs') || "No hay documentos para generar el reporte.");
+      alert("No hay documentos para generar el reporte.");
       return;
     }
 
     setGenerandoReporte(true);
     try {
+      const ventanaReporte = window.open('', '_blank');
+      
       const contenidoHTML = `
         <!DOCTYPE html>
         <html lang="es">
@@ -137,6 +130,9 @@ const PanelDashboard = () => {
             .Pendiente { background: #fef3c7; color: #92400e; }
             .Rechazado { background: #fee2e2; color: #991b1b; }
             .footer { margin-top: 30px; text-align: center; font-size: 12px; color: #888; }
+            @media print {
+              body { margin: 20px; }
+            }
           </style>
         </head>
         <body>
@@ -186,41 +182,35 @@ const PanelDashboard = () => {
           <div class="footer">
             <p>Este reporte es un documento informativo generado desde el sistema de gestión de documentos.</p>
           </div>
+
+          <script>
+            window.onload = function() {
+              setTimeout(() => {
+                window.print();
+              }, 300);
+            }
+          </script>
         </body>
         </html>
       `;
 
-      // Creamos un Blob con el contenido HTML y forzamos la descarga directa
-      const blob = new Blob([contenidoHTML], { type: 'text/html;charset=utf-8;' });
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = `reporte_documentos_${new Date().toISOString().slice(0, 10)}.html`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-
+      ventanaReporte.document.write(contenidoHTML);
+      ventanaReporte.document.close();
     } catch (error) {
-      console.error("Error al descargar el reporte:", error);
-      alert("Ocurrió un error al descargar el reporte.");
+      console.error("Error al generar reporte PDF:", error);
+      alert("Ocurrió un error al generar el reporte.");
     } finally {
       setGenerandoReporte(false);
     }
   };
 
-  // Cálculos dinámicos para las Cards
   const totalDocs = documentos.length;
-  
-  // Calculamos los subidos hoy (comparando solo la fecha, sin horas)
   const fechaHoy = new Date().toLocaleDateString();
   const subidosHoy = documentos.filter(doc => new Date(doc.fecha).toLocaleDateString() === fechaHoy).length;
-  
   const validados = documentos.filter(doc => doc.estado === 'Validado').length;
   const pendientes = documentos.filter(doc => doc.estado === 'Pendiente').length;
   const rechazadosCount = documentos.filter(doc => doc.estado === 'Rechazado').length;
 
-  // Datos dinámicos para las Cards
   const stats = [
     { label: t('dashboard.stat_total'), value: totalDocs.toString(), icon: <HiOutlineDocumentText size={24}/>, color: "text-blue-600", bg: "bg-blue-100" },
     { label: t('dashboard.stat_hoy'), value: subidosHoy.toString(), icon: <HiOutlineCloudUpload size={24}/>, color: "text-emerald-600", bg: "bg-emerald-100" },
@@ -228,10 +218,8 @@ const PanelDashboard = () => {
     { label: t('dashboard.stat_pendientes'), value: pendientes.toString(), icon: <HiOutlineClock size={24}/>, color: "text-amber-600", bg: "bg-amber-100" },
   ];
 
-  // Obtenemos solo los 5 más recientes para la Tabla
   const recentFiles = documentos.slice(0, 5);
 
-  // Preparamos los datos para la gráfica de pastel (distribución de documentos por estatus)
   const datosGraficaEstado = [
     { name: 'Validados', value: validados, color: '#059669' },
     { name: 'Pendientes', value: pendientes, color: '#F2D700' },
@@ -240,25 +228,22 @@ const PanelDashboard = () => {
 
   return (
     <div className="space-y-8">
-      {/* Header de Bienvenida con Botón de Descargar Reporte */}
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">{t('dashboard.titulo')}</h1>
           <p className="text-slate-500 text-sm">{t('dashboard.subtitulo')}</p>
         </div>
         
-        {/* 🔥 Botón para descargar reporte */}
         <button
           onClick={generarReportePersonal}
           disabled={generandoReporte || documentos.length === 0}
           className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2.5 rounded-xl shadow-sm transition-all cursor-pointer disabled:opacity-50 text-sm"
         >
           <HiOutlineDownload size={18} />
-          {generandoReporte ? (t('dashboard.btn_descargando') || 'Descargando...') : (t('dashboard.btn_generar_reporte') || 'Descargar Reporte')}
+          {generandoReporte ? 'Generando...' : 'Generar reporte de documentos'}
         </button>
       </header>
 
-      {/* Sección de Cards  */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 cursor-pointer">
         {stats.map((stat, i) => (
           <div key={i} className="bg-white hover:bg-gray-100 p-5 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 hover:shadow-md transition-shadow">
@@ -273,7 +258,6 @@ const PanelDashboard = () => {
         ))}
       </div>
 
-      {/* SECCIÓN DE LA GRÁFICA DE DISTRIBUCIÓN */}
       <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
         <div className="flex items-center gap-2 text-emerald-600 font-bold border-b pb-3">
           <HiOutlineDocumentText size={24} />
@@ -310,7 +294,6 @@ const PanelDashboard = () => {
         </div>
       </section>
 
-      {/* Tabla de Archivos Recientes  */}
       <section className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex justify-between items-center">
           <h2 className="font-bold text-slate-700">{t('dashboard.docs_recientes')}</h2>
@@ -369,7 +352,6 @@ const PanelDashboard = () => {
         </div>
       </section>
 
-      {/* Botón Flotante de Subida */}
       <button className="fixed bottom-8 right-8 bg-emerald-600 text-white p-4 rounded-full shadow-xl hover:bg-emerald-700 hover:scale-110 transition-all group"
         onClick={() => setIsModalOpen(true)}>
         <HiOutlineCloudUpload size={28} />
@@ -378,7 +360,6 @@ const PanelDashboard = () => {
         </span>
       </button>
 
-      {/* Componente del Modal */}
       <SubirArchivo
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
