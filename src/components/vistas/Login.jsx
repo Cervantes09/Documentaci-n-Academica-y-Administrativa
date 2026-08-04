@@ -12,20 +12,20 @@ const Login = () => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          // Restricción de dominio institucional
           queryParams: {
-            hd: 'utnay.edu.mx', 
+            hd: 'utnay.edu.mx', // Sugiere el dominio en la ventana de Google
           },
-          // Redirección a la raíz para que App.jsx evalúe el rol (pendiente o dashboard)
           redirectTo: window.location.origin
         }
       });
 
       if (error) throw error;
+      
     } catch (error) {
+      // Si el trigger de la base de datos rechaza el correo, caerá aquí al instante
       console.error("Error de autenticación:", error.message);
-      alert("Error al conectar con Google: " + error.message);
-      setLoading(false); // Solo bajamos el loading si hay error, si no, la página recarga
+      alert("Acceso denegado: " + (error.message || "Solo correos institucionales."));
+      setLoading(false); 
     }
   };
 
